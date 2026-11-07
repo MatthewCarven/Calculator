@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <NaturalRoot Condition="'$(NaturalRoot)' == ''">$(MSBuildThisFileDirectory)..\natural-copy\</NaturalRoot>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+</Project>

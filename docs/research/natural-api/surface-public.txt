@@ -1,0 +1,312 @@
+
+=== struct Natural.ApFloat
+  implements: IEquatable<ApFloat>, IComparable<ApFloat>, IComparable, INumber<ApFloat>, INumberBase<ApFloat>, IAdditionOperators<ApFloat,ApFloat,ApFloat>, ISpanFormattable, IFormattable, ISpanParsable<ApFloat>, IParsable<ApFloat>, IUtf8SpanFormattable, IUtf8SpanParsable<ApFloat>, ISignedNumber<ApFloat>
+  ctor .ctor(ApInt significand, Int64 exponent = 0, Int32 precision = 256, RoundingMode mode = ToNearestEven)
+  const Int32 DefaultPrecision = 256
+  const Int32 MaxPrecision = 1073741824
+  Int32 Precision { get; }
+  Boolean IsNaN { get; }
+  Boolean IsInfinity { get; }
+  Boolean IsZero { get; }
+  Boolean IsFinite { get; }
+  Boolean IsNegative { get; }
+  ApInt Significand { get; }
+  Int64 Exponent { get; }
+  static ApFloat Zero { get; }
+  static ApFloat NegativeZero { get; }
+  static ApFloat PositiveInfinity { get; }
+  static ApFloat NegativeInfinity { get; }
+  static ApFloat NaN { get; }
+  static ApFloat One { get; }
+  static ApFloat Abs(ApFloat a)
+  static ApFloat Add(ApFloat a, ApFloat b, Int32 precision, RoundingMode mode = ToNearestEven)
+  static ApFloat Add(ApFloat a, ApFloat b, IeeeFormat format, RoundingMode mode = ToNearestEven)
+  static ApFloat Ceiling(ApFloat x)
+  static ApFloat Clamp(ApFloat value, ApFloat min, ApFloat max)
+  Int32 CompareTo(ApFloat other)
+  Int32 CompareTo(Object obj)
+  static ApFloat CopySign(ApFloat value, ApFloat sign)
+  static ApFloat CreateChecked<TOther>(TOther value)
+  static ApFloat CreateSaturating<TOther>(TOther value)
+  static ApFloat CreateTruncating<TOther>(TOther value)
+  static Int32 DecimalDigitsFor(Int32 precision)
+  static ApFloat Divide(ApFloat a, ApFloat b, Int32 precision, RoundingMode mode = ToNearestEven)
+  static ApFloat Divide(ApFloat a, ApFloat b, IeeeFormat format, RoundingMode mode = ToNearestEven)
+  Boolean Equals(ApFloat other)
+  Boolean Equals(Object obj)
+  static ApFloat Floor(ApFloat x)
+  static ApFloat FromIeeeBytes(ReadOnlySpan<Byte> bytes, IeeeFormat format, Boolean bigEndian = False)
+  static ApFloat FusedMultiplyAdd(ApFloat a, ApFloat b, ApFloat c)
+  static ApFloat FusedMultiplyAdd(ApFloat a, ApFloat b, ApFloat c, Int32 precision, RoundingMode mode = ToNearestEven)
+  static ApFloat FusedMultiplyAdd(ApFloat a, ApFloat b, ApFloat c, IeeeFormat format, RoundingMode mode = ToNearestEven)
+  Int32 GetHashCode()
+  static ApFloat Ieee754Remainder(ApFloat x, ApFloat y)
+  static Boolean IsEvenInteger(ApFloat value)
+  static Boolean IsInteger(ApFloat value)
+  static Boolean IsNegativeInfinity(ApFloat value)
+  static Boolean IsNormal(ApFloat value)
+  static Boolean IsOddInteger(ApFloat value)
+  static Boolean IsPositive(ApFloat value)
+  static Boolean IsPositiveInfinity(ApFloat value)
+  static Boolean IsRealNumber(ApFloat value)
+  static Boolean IsSubnormal(ApFloat value)
+  static ApFloat Max(ApFloat x, ApFloat y)
+  static ApFloat MaxMagnitude(ApFloat x, ApFloat y)
+  static ApFloat MaxMagnitudeNumber(ApFloat x, ApFloat y)
+  static ApFloat MaxNumber(ApFloat x, ApFloat y)
+  static ApFloat Min(ApFloat x, ApFloat y)
+  static ApFloat MinMagnitude(ApFloat x, ApFloat y)
+  static ApFloat MinMagnitudeNumber(ApFloat x, ApFloat y)
+  static ApFloat MinNumber(ApFloat x, ApFloat y)
+  static ApFloat Multiply(ApFloat a, ApFloat b, Int32 precision, RoundingMode mode = ToNearestEven)
+  static ApFloat Multiply(ApFloat a, ApFloat b, IeeeFormat format, RoundingMode mode = ToNearestEven)
+  static ApFloat op_Addition(ApFloat a, ApFloat b)
+  static ApFloat op_Decrement(ApFloat x)
+  static ApFloat op_Division(ApFloat a, ApFloat b)
+  static Boolean op_Equality(ApFloat a, ApFloat b)
+  static ApInt op_Explicit(ApFloat value)
+  static Int64 op_Explicit(ApFloat value)
+  static UInt64 op_Explicit(ApFloat value)
+  static Double op_Explicit(ApFloat value)
+  static Single op_Explicit(ApFloat value)
+  static Half op_Explicit(ApFloat value)
+  static Boolean op_GreaterThan(ApFloat a, ApFloat b)
+  static Boolean op_GreaterThanOrEqual(ApFloat a, ApFloat b)
+  static ApFloat op_Implicit(ApInt value)
+  static ApFloat op_Implicit(Int64 value)
+  static ApFloat op_Implicit(UInt32 value)
+  static ApFloat op_Implicit(UInt64 value)
+  static ApFloat op_Implicit(Double value)
+  static ApFloat op_Implicit(Single value)
+  static ApFloat op_Implicit(Half value)
+  static ApFloat op_Increment(ApFloat x)
+  static Boolean op_Inequality(ApFloat a, ApFloat b)
+  static Boolean op_LessThan(ApFloat a, ApFloat b)
+  static Boolean op_LessThanOrEqual(ApFloat a, ApFloat b)
+  static ApFloat op_Modulus(ApFloat x, ApFloat y)
+  static ApFloat op_Multiply(ApFloat a, ApFloat b)
+  static ApFloat op_Subtraction(ApFloat a, ApFloat b)
+  static ApFloat op_UnaryNegation(ApFloat a)
+  static ApFloat op_UnaryPlus(ApFloat a)
+  static ApFloat Parse(String s)
+  static ApFloat Parse(String s, IFormatProvider provider)
+  static ApFloat Parse(String s, Int32 precision, RoundingMode mode = ToNearestEven, IFormatProvider provider = null)
+  static ApFloat Parse(String s, IeeeFormat format, RoundingMode mode = ToNearestEven, IFormatProvider provider = null)
+  static ApFloat Parse(ReadOnlySpan<Char> s, IFormatProvider provider)
+  static ApFloat Parse(String s, NumberStyles style, IFormatProvider provider)
+  static ApFloat Parse(ReadOnlySpan<Char> s, NumberStyles style, IFormatProvider provider)
+  static ApFloat Round(ApFloat x)
+  static ApFloat Round(ApFloat x, MidpointRounding mode)
+  static Int32 Sign(ApFloat value)
+  static ApFloat Sqrt(ApFloat x)
+  static ApFloat Sqrt(ApFloat x, Int32 precision, RoundingMode mode = ToNearestEven)
+  static ApFloat Sqrt(ApFloat x, IeeeFormat format, RoundingMode mode = ToNearestEven)
+  Job<String,DecimalCertificate> StartFormat(String format = null, IFormatProvider provider = null, RoundingMode mode = ToNearestEven)
+  static Job<ApFloat,DecimalCertificate> StartParse(String s, Int32 precision = 256, RoundingMode mode = ToNearestEven, IFormatProvider provider = null)
+  static Job<ApFloat,DecimalCertificate> StartParse(String s, IeeeFormat format, RoundingMode mode = ToNearestEven, IFormatProvider provider = null)
+  static ApFloat Subtract(ApFloat a, ApFloat b, Int32 precision, RoundingMode mode = ToNearestEven)
+  static ApFloat Subtract(ApFloat a, ApFloat b, IeeeFormat format, RoundingMode mode = ToNearestEven)
+  Double ToDouble(RoundingMode mode = ToNearestEven)
+  Half ToHalf(RoundingMode mode = ToNearestEven)
+  Byte[] ToIeeeBytes(IeeeFormat format, RoundingMode mode = ToNearestEven, Boolean bigEndian = False)
+  Single ToSingle(RoundingMode mode = ToNearestEven)
+  String ToString()
+  String ToString(String format)
+  String ToString(String format, IFormatProvider formatProvider)
+  String ToString(String format, IFormatProvider formatProvider, RoundingMode mode)
+  static ApFloat Truncate(ApFloat x)
+  Boolean TryFormat(Span<Char> destination, ref Int32 charsWritten, ReadOnlySpan<Char> format, IFormatProvider provider)
+  static Boolean TryParse(String s, ref ApFloat result)
+  static Boolean TryParse(String s, IFormatProvider provider, ref ApFloat result)
+  static Boolean TryParse(String s, Int32 precision, RoundingMode mode, IFormatProvider provider, ref ApFloat result)
+  static Boolean TryParse(String s, IeeeFormat format, RoundingMode mode, IFormatProvider provider, ref ApFloat result)
+  static Boolean TryParse(ReadOnlySpan<Char> s, IFormatProvider provider, ref ApFloat result)
+  static Boolean TryParse(String s, NumberStyles style, IFormatProvider provider, ref ApFloat result)
+  static Boolean TryParse(ReadOnlySpan<Char> s, NumberStyles style, IFormatProvider provider, ref ApFloat result)
+  ApFloat WithFormat(IeeeFormat format, RoundingMode mode = ToNearestEven)
+  ApFloat WithPrecision(Int32 precision, RoundingMode mode = ToNearestEven)
+  explicit interface (generic code only): get_AdditiveIdentity, get_MultiplicativeIdentity, get_NegativeOne, get_Radix, IsCanonical, IsComplexNumber, IsFinite, IsImaginaryNumber, IsInfinity, IsNaN, IsNegative, IsZero
+
+=== struct Natural.ApInt
+  implements: IEquatable<ApInt>, IComparable<ApInt>, IComparable, IBinaryInteger<ApInt>, IBinaryNumber<ApInt>, INumber<ApInt>, INumberBase<ApInt>, IAdditionOperators<ApInt,ApInt,ApInt>, ISpanFormattable, IFormattable, ISpanParsable<ApInt>, IParsable<ApInt>, IUtf8SpanFormattable, IUtf8SpanParsable<ApInt>, ISignedNumber<ApInt>
+  static ApInt Zero { get; }
+  static ApInt One { get; }
+  static ApInt MinusOne { get; }
+  Boolean IsZero { get; }
+  Boolean IsNegative { get; }
+  Int32 Sign { get; }
+  Int64 BitLength { get; }
+  static ApInt Abs(ApInt a)
+  static ApInt Clamp(ApInt value, ApInt min, ApInt max)
+  Int32 CompareTo(ApInt other)
+  Int32 CompareTo(Object obj)
+  static ApInt CopySign(ApInt value, ApInt sign)
+  static ApInt CreateChecked<TOther>(TOther value)
+  static ApInt CreateSaturating<TOther>(TOther value)
+  static ApInt CreateTruncating<TOther>(TOther value)
+  static ValueTuple<ApInt,ApInt> DivRem(ApInt dividend, ApInt divisor)
+  Boolean Equals(ApInt other)
+  Boolean Equals(Object obj)
+  static ApInt FromMagnitude(ReadOnlySpan<Byte> littleEndian, Boolean negative = False)
+  Int32 GetHashCode()
+  static ApInt GreatestCommonDivisor(ApInt left, ApInt right)
+  static Boolean IsEvenInteger(ApInt value)
+  static Boolean IsOddInteger(ApInt value)
+  static Boolean IsPositive(ApInt value)
+  static Boolean IsPow2(ApInt value)
+  static ApInt LeadingZeroCount(ApInt value)
+  static ApInt Log2(ApInt value)
+  static ApInt Max(ApInt x, ApInt y)
+  static ApInt MaxMagnitude(ApInt x, ApInt y)
+  static ApInt Min(ApInt x, ApInt y)
+  static ApInt MinMagnitude(ApInt x, ApInt y)
+  static ApInt ModPow(ApInt value, ApInt exponent, ApInt modulus)
+  static ApInt op_Addition(ApInt a, ApInt b)
+  static ApInt op_BitwiseAnd(ApInt a, ApInt b)
+  static ApInt op_BitwiseOr(ApInt a, ApInt b)
+  static ApInt op_Decrement(ApInt a)
+  static ApInt op_Division(ApInt a, ApInt b)
+  static Boolean op_Equality(ApInt a, ApInt b)
+  static ApInt op_ExclusiveOr(ApInt a, ApInt b)
+  static Int64 op_Explicit(ApInt value)
+  static UInt64 op_Explicit(ApInt value)
+  static Boolean op_GreaterThan(ApInt a, ApInt b)
+  static Boolean op_GreaterThanOrEqual(ApInt a, ApInt b)
+  static ApInt op_Implicit(Int32 value)
+  static ApInt op_Implicit(UInt32 value)
+  static ApInt op_Implicit(Int64 value)
+  static ApInt op_Implicit(UInt64 value)
+  static ApInt op_Increment(ApInt a)
+  static Boolean op_Inequality(ApInt a, ApInt b)
+  static ApInt op_LeftShift(ApInt a, Int32 shift)
+  static Boolean op_LessThan(ApInt a, ApInt b)
+  static Boolean op_LessThanOrEqual(ApInt a, ApInt b)
+  static ApInt op_Modulus(ApInt a, ApInt b)
+  static ApInt op_Multiply(ApInt a, ApInt b)
+  static ApInt op_OnesComplement(ApInt a)
+  static ApInt op_RightShift(ApInt a, Int32 shift)
+  static ApInt op_Subtraction(ApInt a, ApInt b)
+  static ApInt op_UnaryNegation(ApInt a)
+  static ApInt op_UnaryPlus(ApInt a)
+  static ApInt op_UnsignedRightShift(ApInt value, Int32 shiftAmount)
+  static ApInt Parse(String s)
+  static ApInt Parse(String s, IFormatProvider provider)
+  static ApInt Parse(ReadOnlySpan<Char> s, IFormatProvider provider)
+  static ApInt Parse(String s, NumberStyles style, IFormatProvider provider)
+  static ApInt Parse(ReadOnlySpan<Char> s, NumberStyles style, IFormatProvider provider)
+  static ApInt PopCount(ApInt value)
+  static ApInt Pow(ApInt value, Int32 exponent)
+  static ApInt RotateLeft(ApInt value, Int32 rotateAmount)
+  static ApInt RotateRight(ApInt value, Int32 rotateAmount)
+  static ApInt Sqrt(ApInt n)
+  static ValueTuple<ApInt,ApInt> SqrtRem(ApInt n)
+  Byte[] ToMagnitudeBytes()
+  String ToString()
+  String ToString(String format)
+  String ToString(String format, IFormatProvider formatProvider)
+  static ApInt TrailingZeroCount(ApInt value)
+  Boolean TryFormat(Span<Char> destination, ref Int32 charsWritten, ReadOnlySpan<Char> format = null, IFormatProvider provider = null)
+  static Boolean TryParse(String s, ref ApInt result)
+  static Boolean TryParse(String s, IFormatProvider provider, ref ApInt result)
+  static Boolean TryParse(ReadOnlySpan<Char> s, IFormatProvider provider, ref ApInt result)
+  static Boolean TryParse(String s, NumberStyles style, IFormatProvider provider, ref ApInt result)
+  static Boolean TryParse(ReadOnlySpan<Char> s, NumberStyles style, IFormatProvider provider, ref ApInt result)
+  explicit interface (generic code only): get_AdditiveIdentity, get_MultiplicativeIdentity, get_NegativeOne, get_Radix, GetByteCount, GetShortestBitLength, IsCanonical, IsComplexNumber, IsFinite, IsImaginaryNumber, IsInfinity, IsInteger, IsNaN, IsNegative, IsNegativeInfinity, IsNormal, IsPositiveInfinity, IsRealNumber, IsSubnormal, IsZero, MaxMagnitudeNumber, MinMagnitudeNumber, TryReadBigEndian, TryReadLittleEndian, TryWriteBigEndian, TryWriteLittleEndian
+
+=== class Natural.DecimalCertificate
+  implements: IEquatable<DecimalCertificate>
+  ctor .ctor(Int32 Rounds, Int64 WorkingBits, Boolean Exact, ApFloat? Low, ApFloat? High, Int64 Scale = 0)
+  Int32 Rounds { get; set; }
+  Int64 WorkingBits { get; set; }
+  Boolean Exact { get; set; }
+  ApFloat? Low { get; set; }
+  ApFloat? High { get; set; }
+  Int64 Scale { get; set; }
+  Void Deconstruct(ref Int32 Rounds, ref Int64 WorkingBits, ref Boolean Exact, ref ApFloat? Low, ref ApFloat? High, ref Int64 Scale)
+  Boolean Equals(Object obj)
+  Boolean Equals(DecimalCertificate other)
+  Int32 GetHashCode()
+  static Boolean op_Equality(DecimalCertificate left, DecimalCertificate right)
+  static Boolean op_Inequality(DecimalCertificate left, DecimalCertificate right)
+  String ToString()
+
+=== class Natural.IeeeContext
+  implements: 
+  ctor .ctor(IeeeFormat format, RoundingMode mode = ToNearestEven)
+  ctor .ctor(Int32 precision, RoundingMode mode = ToNearestEven)
+  IeeeFormat? Format { get; }
+  Int32 Precision { get; }
+  RoundingMode Mode { get; set; }
+  IeeeFlags Flags { get; set; }
+  ApFloat Add(ApFloat a, ApFloat b)
+  Void ClearFlags()
+  ApFloat Convert(ApFloat x)
+  ApFloat Divide(ApFloat a, ApFloat b)
+  ApFloat FusedMultiplyAdd(ApFloat a, ApFloat b, ApFloat c)
+  ApFloat Ieee754Remainder(ApFloat x, ApFloat y)
+  ApFloat Multiply(ApFloat a, ApFloat b)
+  ApFloat Parse(String s, IFormatProvider provider = null)
+  ApFloat Remainder(ApFloat x, ApFloat y)
+  ApFloat RoundToIntegral(ApFloat x)
+  ApFloat Sqrt(ApFloat x)
+  ApFloat Subtract(ApFloat a, ApFloat b)
+  String ToString()
+
+=== enum Natural.IeeeFlags
+  None, Inexact, Underflow, Overflow, DivideByZero, Invalid
+
+=== struct Natural.IeeeFormat
+  implements: IEquatable<IeeeFormat>
+  ctor .ctor(Int32 exponentBits, Int32 precision)
+  const Int32 MaxExponentBits = 62
+  Int32 ExponentBits { get; }
+  Int32 Precision { get; }
+  Int32 Width { get; }
+  Int64 Bias { get; }
+  Int64 MaxExponent { get; }
+  Int64 MinExponent { get; }
+  static IeeeFormat Binary16 { get; }
+  static IeeeFormat Binary32 { get; }
+  static IeeeFormat Binary64 { get; }
+  static IeeeFormat Binary128 { get; }
+  static IeeeFormat Binary256 { get; }
+  static IeeeFormat Binary(Int32 k)
+  Boolean Equals(Object obj)
+  Boolean Equals(IeeeFormat other)
+  Int32 GetHashCode()
+  static Boolean op_Equality(IeeeFormat left, IeeeFormat right)
+  static Boolean op_Inequality(IeeeFormat left, IeeeFormat right)
+  String ToString()
+
+=== class Natural.Jobs.Job
+  implements: 
+  static Job<T> Start<T>(Func<JobContext<T>,IEnumerable<Int64>> body)
+  static Job<T,TCertificate> Start<T,TCertificate>(Func<JobContext<T,TCertificate>,IEnumerable<Int64>> body)
+
+=== class Natural.Jobs.Job`1
+  implements: IDisposable
+  Int64 WorkDone { get; set; }
+  Int64 Steps { get; set; }
+  Boolean IsComplete { get; set; }
+  Double Progress { get; set; }
+  T Result { get; }
+  Boolean Continue(Int64 units)
+  Boolean Continue(TimeSpan time)
+  Void Dispose()
+  T RunToEnd()
+
+=== class Natural.Jobs.Job`2
+  implements: IDisposable
+  TCertificate Certificate { get; }
+
+=== class Natural.Jobs.JobContext`1
+  implements: 
+  T Result { get; set; }
+  Int64 ExpectedWork { get; set; }
+
+=== class Natural.Jobs.JobContext`2
+  implements: 
+  TCertificate Certificate { get; set; }
+
+=== enum Natural.RoundingMode
+  ToNearestEven, TowardZero, TowardPositive, TowardNegative

@@ -1,0 +1,127 @@
+--- natural-bench/src/Natural/Magnitude.cs	2026-10-11 02:29:40.000000000 +1100
++++ bench/natural-fast/src/Natural/Magnitude.cs	2026-11-07 19:35:52.218781900 +1100
+@@ -1,3 +1,5 @@
++using System.Runtime.CompilerServices;
++
+ namespace Natural;
+ 
+ /// <summary>
+@@ -13,6 +15,13 @@
+ {
+     internal static readonly uint[] Empty = [];
+ 
++    // THROWAWAY EXPERIMENT (calculator bench, 2026-11-07), sizing order item 7. Not a proposal.
++    // NAT_KS=0 turns the parallel-prefix adder off; NAT_KT=<limbs> sets the Karatsuba threshold
++    // (0 = off); NAT_SD=1 turns on short division by one limb. Read once, so tier-1 code folds them.
++    internal static readonly bool KoggeStone = Environment.GetEnvironmentVariable("NAT_KS") != "0";
++    internal static readonly int KaratsubaLimbs = int.TryParse(Environment.GetEnvironmentVariable("NAT_KT"), out int kt) ? kt : 48;
++    internal static readonly bool ShortDivide = Environment.GetEnvironmentVariable("NAT_SD") == "1";
++
+     // ------------------------------------------------------------------
+     // The adder
+     // ------------------------------------------------------------------
+@@ -22,8 +31,23 @@
+     /// and replaces <paramref name="carry"/> with the carry out of the top bit.
+     /// Requires carry to be 0 or 1 on entry; it is 0 or 1 on exit.
+     /// </summary>
++    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+     internal static uint FullAdd(uint a, uint b, ref uint carry)
+     {
++        if (KoggeStone)
++        {
++            // Kogge-Stone: generate g, propagate q, five doubling steps whatever the bits.
++            uint p = a ^ b, carryIn = carry;
++            uint g = (a & b) | (p & carryIn);
++            uint q = p;
++            g |= q & (g << 1); q &= q << 1;
++            g |= q & (g << 2); q &= q << 2;
++            g |= q & (g << 4); q &= q << 4;
++            g |= q & (g << 8); q &= q << 8;
++            g |= q & (g << 16);
++            carry = g >> 31;
++            return p ^ ((g << 1) | carryIn);
++        }
+         uint carryOut = 0;
+         uint sum = HalfAddAll(a, b, ref carryOut);
+         sum = HalfAddAll(sum, carry, ref carryOut);
+@@ -96,8 +120,37 @@
+ 
+         // Scan the shorter operand's bits; add copies of the longer one.
+         if (a.Length < b.Length) (a, b) = (b, a);
+-        uint[] multiplicand = a, multiplier = b;
++        if (KaratsubaLimbs > 0 && b.Length >= KaratsubaLimbs) return Karatsuba(a, b);
++        return ShiftAndAdd(a, b);
++    }
++
++    /// <summary>a × b for a.Length >= b.Length >= the threshold: three half-size products, not four.</summary>
++    private static uint[] Karatsuba(uint[] a, uint[] b)
++    {
++        var product = new uint[a.Length + b.Length];
++        if (a.Length >= 2 * b.Length)
++        {
++            // Lopsided: slice a into pieces of b's length.
++            for (int at = 0; at < a.Length; at += b.Length)
++            {
++                uint[] piece = Trim(a[at..Math.Min(a.Length, at + b.Length)]);
++                AddInto(product, Multiply(piece, b), at);
++            }
++            return Trim(product);
++        }
++
++        int m = a.Length >> 1;
++        uint[] a0 = Trim(a[..m]), a1 = Trim(a[m..]), b0 = Trim(b[..m]), b1 = Trim(b[m..]);
++        uint[] z0 = Multiply(a0, b0), z2 = Multiply(a1, b1);
++        uint[] z1 = Subtract(Subtract(Multiply(Add(a0, a1), Add(b0, b1)), z0), z2);
++        Array.Copy(z0, product, z0.Length);
++        AddInto(product, z1, m);
++        AddInto(product, z2, 2 * m);
++        return Trim(product);
++    }
+ 
++    private static uint[] ShiftAndAdd(uint[] multiplicand, uint[] multiplier)
++    {
+         var product = new uint[multiplicand.Length + multiplier.Length];
+ 
+         // A shift by 32*j + k is a whole-limb offset j plus a bit shift k, so only
+@@ -145,6 +198,8 @@
+             remainder = dividend;
+             return Empty;
+         }
++        if (ShortDivide && divisor.Length == 1 && (divisor[0] >> 31) == 0)
++            return DivRemShort(dividend, divisor[0], out remainder);
+ 
+         var quotient = new uint[dividend.Length];
+ 
+@@ -175,6 +230,32 @@
+         return Trim(quotient);
+     }
+ 
++    /// <summary>
++    /// The same restoring division with a one-limb divisor below 2^31: the remainder is a word, so
++    /// each bit is a shift, one adder call and a mask, with no arrays and no branch on the data.
++    /// </summary>
++    private static uint[] DivRemShort(uint[] dividend, uint d, out uint[] remainder)
++    {
++        var quotient = new uint[dividend.Length];
++        uint rem = 0, notD = ~d;
++        for (int i = dividend.Length - 1; i >= 0; i--)
++        {
++            uint word = dividend[i], q = 0;
++            for (int bit = 31; bit >= 0; bit--)
++            {
++                rem = (rem << 1) | ((word >> bit) & 1);
++                uint carry = 1;
++                uint difference = FullAdd(rem, notD, ref carry);      // the carry out says rem >= d
++                uint take = (uint)((int)(carry << 31) >> 31);
++                rem = (difference & take) | (rem & ~take);
++                q = (q << 1) | carry;
++            }
++            quotient[i] = q;
++        }
++        remainder = rem == 0 ? Empty : [rem];
++        return Trim(quotient);
++    }
++
+     /// <summary>
+     /// Integer square root, digit by digit -- the pencil-and-paper method, in base 2. Bring the
+     /// radicand's bits down two at a time, top pair first, into a running remainder. With the

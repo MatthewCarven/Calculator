@@ -1,0 +1,128 @@
+
+=== public struct Natural.ApFloat
+  internal  static Route ForcedRoute
+  internal  static Int32 LastRounds
+  internal  static Boolean LastExact
+  (private)  UInt32[] Mant { get; }
+  (private)  Int64 Top { get; }
+  internal static ApFloat Add(ApFloat a, ApFloat b, Target target, RoundingMode mode, ref IeeeFlags flags)
+  internal static ApFloat Convert(ApFloat x, Target target, RoundingMode mode, ref IeeeFlags flags)
+  internal static ApFloat Divide(ApFloat a, ApFloat b, Target target, RoundingMode mode, ref IeeeFlags flags)
+  internal static Int64 FloorLog2Of5Times(Int64 n)
+  internal static ApFloat FromIeeeBits(UInt64 bits, Int32 exponentBits, Int32 precision)
+  internal static ApFloat FusedMultiplyAdd(ApFloat a, ApFloat b, ApFloat c, Target target, RoundingMode mode, ref IeeeFlags flags)
+  internal static ApFloat Ieee754Remainder(ApFloat x, ApFloat y, ref IeeeFlags flags)
+  internal static ApFloat Multiply(ApFloat a, ApFloat b, Target target, RoundingMode mode, ref IeeeFlags flags)
+  (private) static ApFloat Normalised(Boolean negative, UInt32[] mag, Int64 exp, Int32 precision)
+  internal static ApFloat Parse(String s, Target target, RoundingMode mode, IFormatProvider provider, ref IeeeFlags flags)
+  internal static ParseOutcome ParseStyled(ReadOnlySpan<Char> s, NumberStyles style, IFormatProvider provider, Target target, RoundingMode mode, ref ApFloat result, ref IeeeFlags flags)
+  internal static ValueTuple<ApFloat,ApFloat> PowerOfFiveBounds(Int64 n, Int32 workingBits)
+  internal static ApFloat Remainder(ApFloat x, ApFloat y, ref IeeeFlags flags)
+  (private) static ApFloat RoundExact(Boolean negative, UInt32[] mag, Int64 exp, Boolean sticky, Int32 precision, RoundingMode mode, Int64 minExp = -9223372036854775808)
+  (private) static ApFloat RoundExact(Boolean negative, UInt32[] mag, Int64 exp, Boolean sticky, Int32 precision, RoundingMode mode, Int64 minExp, ref Boolean inexact)
+  (private) static ApFloat RoundToFormat(Boolean negative, UInt32[] mag, Int64 exp, Boolean sticky, IeeeFormat format, RoundingMode mode)
+  (private) static ApFloat RoundToFormat(Boolean negative, UInt32[] mag, Int64 exp, Boolean sticky, IeeeFormat format, RoundingMode mode, ref IeeeFlags flags)
+  internal static ApFloat RoundToIntegral(ApFloat x, RoundingMode mode)
+  internal static ApFloat Sqrt(ApFloat x, Target target, RoundingMode mode, ref IeeeFlags flags)
+  internal UInt64 ToIeeeBits(Int32 exponentBits, Int32 precision, RoundingMode mode = ToNearestEven)
+
+=== private enum Natural.ApFloat+ConversionMode
+
+=== private class Natural.ApFloat+CustomPattern
+  (private)  Type EqualityContract { get; }
+
+=== private class Natural.ApFloat+DecimalFormat
+
+=== private class Natural.ApFloat+DecimalFormat+Candidate
+  (private)  Type EqualityContract { get; }
+
+=== private enum Natural.ApFloat+DecimalFormat+Kind
+
+=== private class Natural.ApFloat+DecimalParse
+
+=== private enum Natural.ApFloat+Kind
+
+=== internal enum Natural.ApFloat+ParseOutcome
+
+=== private class Natural.ApFloat+Pinning
+
+=== internal enum Natural.ApFloat+Route
+
+=== internal struct Natural.ApFloat+Target
+
+=== public struct Natural.ApInt
+  internal  const Int32 DigitStepUnits = 4096
+  (private)  UInt32[] Mag { get; }
+  internal  UInt32[] Limbs { get; }
+  (private)  Boolean FitsAnInt { get; }
+  (private)  Int32 Words { get; }
+  internal static Int64 DecimalDigitsForBits(Int64 bits)
+  internal static IEnumerable<Int64> DecimalDigitSteps(String digits, StrongBox<UInt32[]> result)
+  internal static Int64 DecimalDigitUnits(Int64 n)
+  internal static IEnumerable<Int64> DecimalStringSteps(UInt32[] mag, StrongBox<String> result)
+  internal static Int64 DecimalStringUnits(Int64 n)
+  internal static ApInt FromLimbs(UInt32[] trimmedMagnitude, Boolean negative)
+  internal static Boolean IsBuiltInInteger<TOther>()
+  internal static String ToRadixDigits(UInt32[] mag, Int32 bitsPerDigit, String alphabet)
+  (private) String ToTwosComplementDigits(Int32 bitsPerDigit, String alphabet, Int32 width)
+  internal static Boolean TryConvertFromInteger<TOther>(TOther value, ref ApInt result)
+  (private) UInt32[] TwosComplement(Int32 words)
+
+=== private enum Natural.ApInt+Overflow
+
+=== private enum Natural.ApInt+StyledOutcome
+
+=== public class Natural.DecimalCertificate
+  (private)  Type EqualityContract { get; }
+
+=== public class Natural.IeeeContext
+
+=== public enum Natural.IeeeFlags
+
+=== public struct Natural.IeeeFormat
+
+=== public class Natural.Jobs.Job
+
+=== public class Natural.Jobs.Job`1
+  internal ctor .ctor(Func<JobContext<T>,IEnumerable<Int64>> body)
+
+=== public class Natural.Jobs.Job`2
+  internal ctor .ctor(Func<JobContext<T,TCertificate>,IEnumerable<Int64>> body)
+
+=== public class Natural.Jobs.JobContext`1
+  internal ctor .ctor()
+  internal  Boolean HasResult { get; set; }
+  internal  String Missing { get; }
+
+=== public class Natural.Jobs.JobContext`2
+  internal ctor .ctor()
+  (private)  Boolean HasCertificate { get; set; }
+  internal  String Missing { get; }
+
+=== internal class Natural.Magnitude
+  internal  static UInt32[] Empty
+  internal static UInt32[] Add(UInt32[] a, UInt32[] b)
+  internal static Boolean AnyBitsBelow(UInt32[] a, Int64 count)
+  internal static Int64 BitLength(UInt32[] a)
+  internal static Int32 Compare(UInt32[] a, UInt32[] b)
+  internal static UInt32[] DivRem(UInt32[] dividend, UInt32[] divisor, ref UInt32[] remainder)
+  internal static UInt32[] FromTwosComplement(UInt32[] bits, ref Boolean negative)
+  internal static UInt32 FullAdd(UInt32 a, UInt32 b, ref UInt32 carry)
+  internal static UInt32[] Gcd(UInt32[] a, UInt32[] b)
+  internal static UInt32[] Mod(UInt32[] a, UInt32[] m)
+  internal static UInt32[] ModPow(UInt32[] value, UInt32[] exponent, UInt32[] m)
+  internal static UInt32[] Multiply(UInt32[] a, UInt32[] b)
+  internal static UInt32[] ShiftLeft(UInt32[] a, Int64 bits)
+  internal static UInt32[] ShiftRight(UInt32[] a, Int64 bits)
+  internal static UInt32[] Sqrt(UInt32[] n, ref UInt32[] remainder)
+  internal static UInt32[] Subtract(UInt32[] a, UInt32[] b)
+  internal static Boolean TestBit(UInt32[] a, Int64 index)
+  internal static UInt32[] ToTwosComplement(UInt32[] mag, Boolean negative, Int32 limbs)
+  internal static Int64 TrailingZeroCount(UInt32[] a)
+  internal static UInt32[] Trim(UInt32[] a)
+
+=== public enum Natural.RoundingMode
+
+=== internal struct Natural.StyledNumber
+  internal static Boolean AllowsHyphen(NumberFormatInfo nfi)
+  internal static Boolean IsWhite(Char c)

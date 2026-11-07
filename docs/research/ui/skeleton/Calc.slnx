@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="src/Calc.Protocol/Calc.Protocol.csproj" />
+  <Project Path="src/Calc.Engine/Calc.Engine.csproj" />
+  <Project Path="src/Calc.Worker/Calc.Worker.csproj" />
+  <Project Path="src/Calc.ViewModels/Calc.ViewModels.csproj" />
+  <Project Path="src/Calc.App/Calc.App.csproj" />
+</Solution>

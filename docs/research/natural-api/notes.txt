@@ -1,0 +1,115 @@
+Natural's public surface for a calculator author: longer notes behind the gap analysis.
+Date 2026-11-07. Private copy: natural-api, identical to the live tree by MD5 on 56 .cs, .csproj, .md,
+.slnx and .py files. Nothing was written to, built in or run in the live Natural or Calc folders.
+
+WHAT IS IN THIS FOLDER
+  surface-public.txt     every public type and member, by reflection (300 rows)
+  surface-internal.txt   internal members, and the private ones a calculator would miss
+  Surface.cs             makes those two
+  Traps.cs, traps.out.txt          the traps, 357 lines of output
+  Extremes.cs            driver and cases: each case a child process, 1 GiB heap cap, a timeout
+  extremes1.out.txt      shifts, memory, exponent overflow, the Top wrap
+  extremes2.out.txt      cost ladders
+  extremes3.out.txt      huge conversions, remainders, format strings, interruption, job slices, display
+  OnTop.cs, ontop.out.txt          every ON-TOP recipe, public API only: the recipes to copy
+  oracle.py, oracle.out.txt        exact check of OnTop's results, standard library only: 298 of 298
+  Readme.cs, readme.out.txt        README samples, .NET's ties, the wrap's edge, README's timing claims
+  Loose.cs, loose.out.txt          nulls, the "B" wrap, chunked radix
+  InternalsCheck.cs, internals.out.txt   the compiler refusing the internal members (a build failure on purpose)
+  tests.out.txt          the real test project, private copy: 682 passed, 0 failed, Debug, 24 s
+
+RECIPES, IN OnTop.cs
+  FlooredMod, Lcm, Factorial, ProductRange, NPr, NCr, ModInverse (extended Euclid), MillerRabin, PollardRho,
+  ToRadix, FromRadix, ToOctal, IntegerRoot (Newton), RootN (correctly rounded in all four modes, the sticky bit
+  as one extra low bit for the public constructor), PowInt (exact, one rounding), Top, Ulp, NextUp, NextDown,
+  NextUpIn (a format, edges included), PiFixed (Machin), Ln2Fixed, EFixed, Exp, Ln (Newton on Exp), SinCos,
+  Atan (Newton on SinCos), Ziv (both ends of an error bound round alike, or double the working bits).
+  Loose.cs has the chunked radix: 13 times faster than one digit at a time (140 ms against 1,846 ms on 15,850
+  bits). Decimal by double dabble took 24 ms on the same value.
+
+  Ziv's slack figures (12 to 18 bits) were chosen by eye and passed on these inputs. They are not proved error
+  bounds. A real version needs an error analysis per function.
+
+WHY RoundExact DOES NOT NEED EXPOSING
+  new ApFloat(ApInt significand, long exponent, int precision, RoundingMode mode) rounds once. To round a value
+  known only to be a little above m × 2^e, pass (m << 1) + 1 with exponent e - 1: that is the sticky bit. RootN
+  does this, 96 of 96 in all four modes at 53, 256 and 1024 bits. The missing piece is minExp, the subnormal
+  floor: use WithFormat, or the format overloads. A result computed at w bits and then put through WithFormat
+  rounds twice, so Ziv must test both ends after WithFormat.
+
+  IeeeContext.Flags has a public setter, so an on-top exp can raise Inexact in the same context.
+
+THE TOP WRAP, IN DETAIL
+  ApFloat.Top is _exp + BitLength - 1, in an unchecked context, and _exp is checked everywhere else. A value is
+  stored fine while its top bit lies past 2^63 - 1, as long as _exp itself fits. Then Top goes negative, and
+  everything that reads it believes the value is tiny.
+    0x3p9223372036854775807: x > 1 false, x < 1 true, (double)x 0, binary64 bytes all zero, (x + 1).Exponent 0,
+    Max(x, 1) != x, ToString throws OverflowException.
+    Decimal text: 1e2776511644261678566 is the last sound exponent at every precision. The wrapped window is
+    15 decimal exponents at 53 bits, 19 at 64, 76 at 256, 308 at 1024. Past it Parse throws.
+    Arithmetic: a 256-bit significand at exponent 2^63 - 261, doubled: 6 doublings pass the top (a > 1 is false
+    there, and (double)a is 0), and OverflowException comes only at 260. Only that first wrapped value was
+    compared; the 254 between were not sampled.
+  Squaring from small values does not land there: it throws first. The wrap needs an exponent within the
+  precision's width of 2^63, so a calculator reaches it by typing such text, or by doubling up to the edge.
+  Fix in Natural: check Top where a value is made. Guard in Calc: after every result, refuse anything with
+  |Exponent + BitLength| at or above 2^62, and treat it as overflow. That also keeps Calc clear of the two values
+  at the very top that parse but will not print.
+
+EXPONENT OVERFLOW, BY OPERATION
+  Multiply, Divide, FMA: checked, OverflowException, in every target. In IeeeContext(Binary64) a result that
+  belongs at infinity with the Overflow flag still throws when the OPERANDS' exponents overflow a long, since the
+  check comes before the rounding. Reaching that takes operands far outside binary64's range, so it only matters
+  if values cross between contexts.
+  Add: never overflows (the gap shortcut), but reads Top.
+  2^(-2^62) squared reaches exponent long.MinValue legally; halving it then throws.
+
+COST, ONE RUN EACH, TWO-SPEED MACHINE
+  Squaring and division by a long divisor cost the square of the length. Division by a one-limb divisor is linear.
+  1/3 at 2^20, 2^22, 2^24, 2^26, 2^28 bits: 49, 148, 624, 2,350, 9,470 ms.
+  Sqrt(2, p) at 2^12..2^18: 67, 234, 2,048, 32,361 ms.
+  Multiply(x, x, 64) with x of 2^12..2^18 bits: 17, 119, 540, 7,898 ms; 0.3 ms or less after WithPrecision(64).
+  ToString of 1/3: 2^16 bits, default 810 ms, G19728 873 ms, R 32,442 ms, E20 0.7 ms.
+                   2^14 bits, default 71 ms,  G4932 63 ms,   R 1,711 ms,  E20 0.2 ms.
+  1.5 "F100000": 7.9 s. 2^18-bit ApInt to decimal: 1.8 s.
+  10000! one by one: 1.9 s. 30000! by product tree: 17 s. 100000! by product tree: 251 s.
+  ApInt.Pow(10, n) through styled parse: "1e100000" 5.5 s, "1e1000000" unfinished at 4 s.
+  π at 1024 bits 11 ms, 4096 bits 159 ms. exp(1.5) at 1024 bits 10 ms. ln(10) at 1024 bits 36 ms.
+  Miller-Rabin, one base, 2^2203 - 1: about 0.15 s. Pollard rho on a 60-bit semiprime: about 0.2 s.
+
+MEMORY
+  Magnitude.ShiftLeft allocates one spill limb, which is usually zero, so Trim copies the whole array: a shift
+  briefly needs twice its result (read from the code). After One << int.MaxValue, a 256 MiB value, the managed
+  heap read 512 MiB. The peak working set over each of those short cases was 787 MiB.
+  OutOfMemoryException was catchable in every case at the cap, and after the one case tested (shlchain)
+  arithmetic carried on normally.
+
+STOPPING WORK
+  No CancellationToken, Thread or Task anywhere in src/Natural (grep).
+  Thread.Interrupt: no effect in 3 s. Thread.Abort: PlatformNotSupportedException.
+  System.Runtime.ControlledExecution.Run (obsolete-marked, SYSLIB0046, "may corrupt the process"): stopped Multiply
+  in Pow, double dabble and Sqrt, 16 to 61 ms past the asked time, and arithmetic worked afterwards. Three trials
+  only. The shared state to worry about is ApFloat's _fives cache and its lock, which was not exercised here.
+  Killing a child process: 11 kills in these runs, every one clean. A worker process is the sound way; a
+  cancellation check in Magnitude's outer loops is the proper fix.
+
+GROUPING
+  ApFloat's Group uses NumberGroupSizes[0] only, so en-IN and hi-IN print 1,234,567.5 where .NET prints
+  12,34,567.5. en-US, en-GB, de-DE, fr-FR, sv-SE and ar-SA matched .NET's text. The machine's culture is en-AU.
+
+SMALLER THINGS
+  ApFloat's TryParse throws for a bad precision (ArgumentOutOfRangeException) and for a hex or binary style
+  (ArgumentException, as double.TryParse does).
+  A bad RoundingMode is only noticed if rounding actually happens: Add(1, 1, 53, (RoundingMode)99) returns 2.
+  A format string of more than ten characters stops being a standard format: "E1234567890" on 1.5 prints
+  E1234567892. "F999999999", "E999999999" and "G999999999" hang. "B999999999" is OutOfMemoryException, "A999999999"
+  OverflowException. Cap the digits a user can ask for.
+  ApFloat formats N, C, P, D are FormatExceptions, and custom patterns refuse %, sections and exponents.
+  ApInt.ToString refuses N, G5 and any custom pattern: go through (ApFloat)x for grouping.
+  NumberStyles parsing on ApFloat has no precision parameter: it is always 256 bits. ParseStyled, which has one,
+  is internal. Strip the group separators and call Parse(s, p, mode, provider) instead.
+  byte and ushort do not convert to ApInt (CS0457, ambiguous between int and uint). They do convert to ApFloat.
+  -0: 0 * -1, Ceiling(-0.5) and Round(-0.4) print -0, and F2 gives -0.00.
+  ApFloat.Equals(NaN, NaN) is true and == is false. CompareTo sorts NaN lowest. Sign(NaN) throws.
+  Natural_Playground's FloatReport computes ulp the same way from public members, and is internal to its own
+  project: copy the idea, there is nothing to reference.
