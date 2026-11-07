@@ -2,6 +2,8 @@
 
 A Windows desktop calculator with Natural (`../Natural`) as its number type. Nothing is built yet.
 
+The folder is `Calc`, and its GitHub repo is [MatthewCarven/Calculator](https://github.com/MatthewCarven/Calculator), which is public.
+
 - [PLAN.md](PLAN.md): what we're building and why.
 - [TODO.md](TODO.md): the rules, the order of work and a brief for every session. It's the handoff between chats.
 - [WORKLOG.md](WORKLOG.md): what happened, newest last.

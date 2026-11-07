@@ -45,4 +45,8 @@ two answers that concern Natural into its TODO, because a chat here doesn't edit
 
 First commit made. There's no GitHub remote yet, so sessions commit and skip the push until there is.
 
+Later the same evening Matthew made the repo, https://github.com/MatthewCarven/Calculator, public and empty, and `origin` now points there.
+Before the first push, the commit was scanned for secrets, hostnames, addresses and other projects' details: nothing but local paths in
+scratch headers and one passing mention of Chess Bruteforcer. Sessions push as normal from here.
+
 **Next:** A1, in a fresh chat opened in the Natural folder, at "extra" effort with ultracode off.

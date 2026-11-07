@@ -67,8 +67,8 @@ These cost real time to find. The evidence is in `docs/research/natural-api/note
 
 ## Order of work
 
-**Done 2026-11-07:** `git init`, and all six questions in PLAN.md's Decisions section, answered as recommended. **Still Matthew's:** Calc's
-GitHub remote. Until `origin` exists, Calc sessions commit and skip the push.
+**Done 2026-11-07:** `git init`; all six questions in PLAN.md's Decisions section, answered as recommended; and the GitHub remote. `origin` is
+https://github.com/MatthewCarven/Calculator, which is public, so nothing private goes in a commit.
 
 **A. Ground (Natural)**
 - [ ] A1 Finish session 9b: its battery, its docs, commit, push
