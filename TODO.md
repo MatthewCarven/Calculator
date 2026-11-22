@@ -71,7 +71,7 @@ These cost real time to find. The evidence is in `docs/research/natural-api/note
 https://github.com/MatthewCarven/Calculator, which is public, so nothing private goes in a commit.
 
 **A. Ground (Natural)**
-- [ ] A1 Finish session 9b: its battery, its docs, commit, push
+- [x] A1 Finish session 9b: its battery, its docs, commit, push (2026-11-22: 59 of 59 red, Natural at 9b2dc83)
 - [ ] A2 Three bugs a calculator can reach
 
 **B. Engine**

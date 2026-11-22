@@ -50,3 +50,16 @@ Before the first push, the commit was scanned for secrets, hostnames, addresses 
 scratch headers and one passing mention of Chess Bruteforcer. Sessions push as normal from here.
 
 **Next:** A1, in a fresh chat opened in the Natural folder, at "extra" effort with ultracode off.
+
+## 2026-11-22: A1 done
+
+Run from this chat with the Natural folder added, rather than a chat opened in Natural, at Matthew's asking; Natural's CLAUDE.md
+and memory were read by hand. 9b committed (d0a8f41); its battery finished, 59 of 59 red; Natural's docs made true; the T plan
+copied into `../Natural/docs/transcendentals/`, the live copy now; Natural's order of work lists A2, D1, D2, T and I with
+Matthew's two answers. Natural pushed: origin went from c06ef4c to 9b2dc83, so GitHub has 9a and 9b at last. Details are in
+Natural's WORKLOG.
+
+Found on the way: a .NET 11 SDK (11.0.100) is installed beside 10.0.404, and file-based apps without a `TargetFramework` now run on
+.NET 11. Calc targets net10.0, so B1 should say so, and any bench or probe here wants `#:property TargetFramework=net10.0`.
+
+**Next:** A2, three bugs a calculator can reach, in Natural.
