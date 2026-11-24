@@ -63,3 +63,16 @@ Found on the way: a .NET 11 SDK (11.0.100) is installed beside 10.0.404, and fil
 .NET 11. Calc targets net10.0, so B1 should say so, and any bench or probe here wants `#:property TargetFramework=net10.0`.
 
 **Next:** A2, three bugs a calculator can reach, in Natural.
+
+## 2026-11-25: A2 done
+
+Run from this chat again, with the Natural folder added. All three bugs fixed in Natural, each with a test that failed
+first: a value's leading bit is kept inside a long where values are made, and the format code's two raw sums saturate; the
+radix digit count can't wrap, and "B" refuses over-long text before building it; and `Ieee754Remainder` takes `%`'s
+early-out. 682 → 693 tests; 15 mutations, 14 red, 1 equivalent and predicted. Natural pushed at eecf078. Details are in
+Natural's WORKLOG.
+
+For Calc: the print edge stays. Values whose top bit is at 2^63 − 2 or above parse but throw `OverflowException` on decimal
+output, so B6's ErrorMap maps a `ToString` overflow to `Overflow`, as its brief already says.
+
+**Next:** B1, the solution skeleton, the first session in Calc itself.

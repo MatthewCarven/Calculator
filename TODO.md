@@ -72,7 +72,7 @@ https://github.com/MatthewCarven/Calculator, which is public, so nothing private
 
 **A. Ground (Natural)**
 - [x] A1 Finish session 9b: its battery, its docs, commit, push (2026-11-22: 59 of 59 red, Natural at 9b2dc83)
-- [ ] A2 Three bugs a calculator can reach
+- [x] A2 Three bugs a calculator can reach (2026-11-25: 693 tests, 14 of 15 mutations red, 1 equivalent; Natural at eecf078)
 
 **B. Engine**
 - [ ] B1 Solution skeleton
