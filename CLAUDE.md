@@ -1,7 +1,7 @@
 # Calc
 
-A Windows desktop calculator with Natural (`../Natural`) as its number type. The solution skeleton is built (B1). The engine
-starts in B2.
+A Windows desktop calculator with Natural (`../Natural`) as its number type. The solution skeleton (B1) and the lexer (B2) are
+built. The parser is next.
 
 The folder is `Calc`, and its GitHub repo is [MatthewCarven/Calculator](https://github.com/MatthewCarven/Calculator), which is public.
 
@@ -34,14 +34,14 @@ Until B4, `--eval` prints 1/3 at 256 bits whatever it's given.
 |---|---|
 | `Directory.Build.props` | Every project: net10.0, nullable warnings as errors, **checked arithmetic**, and `NaturalRoot` (default `..\Natural\`), from which `NaturalProject` is derived |
 | `src/WorkerBeside.targets` | Builds `calc-worker` first and copies its whole output beside a program that mustn't reference it. Imported by Calc.Cli, both test projects that run the worker, and Calc.App from C1 |
-| `src/Calc.Syntax` | Empty until B2 |
+| `src/Calc.Syntax` | `Lexer` (text to `Token`s, by loops, never recursion), `TextSpan`, and `CalcError` with its `ErrorKind`. The parser joins it in B3 |
 | `src/Calc.Protocol` | `Wire`: the wire version and the worker's file name |
 | `src/Calc.Engine` | `Link`, B1's proof that Natural is linked in, until B4's evaluator replaces it. Errors early, by name, if Natural isn't where `NaturalRoot` says |
 | `src/Calc.Worker` | `calc-worker`: `--eval` now, the stdio loop in B9 |
 | `src/Calc.Client` | Empty until B10 |
 | `src/Calc.Cli` | Says whether the worker landed beside it, until B11 |
 | `tests/Directory.Build.props` | The xunit packages, the same versions as Natural's tests |
-| `tests/Calc.Engine.Tests` | `LinkTests`, against a BigInteger oracle. B2's Syntax tests go here too |
+| `tests/Calc.Engine.Tests` | `LinkTests`, against a BigInteger oracle. `Syntax/`: the lexer's table, and fuzzes against `ReferenceLexer`, a second lexer written with regular expressions |
 | `tests/Calc.Worker.Tests` | `EvalFlagTests`, which run the real exe |
 | `tests/Calc.Client.Tests` | `LayeringTests` (rule 1), and `WorkerBesideTests`, which runs the worker from beside the tests. References Calc.Cli so it can read it |
 
@@ -54,5 +54,7 @@ Until B4, `--eval` prints 1/3 at 256 bits whatever it's given.
   transitively, but not its DLLs. So `calc-worker.exe` beside a program proves nothing: a test has to run it.
 - **A `-p:` property can't be changed inside a project.** That's why `NaturalProject` exists: it adds the slash `NaturalRoot`
   may lack.
+- **xUnit mangles a lone surrogate in `[InlineData]`,** so a test case that needs one is a `[Fact]`.
+- **Mutation batteries** follow `../Natural/CLAUDE.md`'s recipe, running `dotnet test tests/<project>`. Don't build while one runs.
 - **Building Calc builds Natural's own project,** into Natural's `bin` and `obj`, with whichever SDK Calc gets. There's no
   `global.json`, so that's the .NET 11 SDK, targeting net10.0.

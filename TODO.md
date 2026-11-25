@@ -76,7 +76,7 @@ https://github.com/MatthewCarven/Calculator, which is public, so nothing private
 
 **B. Engine**
 - [x] B1 Solution skeleton (2026-11-25: 6 projects and 3 test projects, 8 tests; the copy step is shared as `src/WorkerBeside.targets`)
-- [ ] B2 Lexer
+- [x] B2 Lexer (2026-11-25: 119 lexer tests, agreeing with a regex oracle on 100,000 strings; 20 of 20 mutations red)
 - [ ] B3 Parser
 - [ ] B4 Evaluator and float core
 - [ ] B5 Functions and powers
@@ -273,6 +273,7 @@ thread with a 256 MiB stack (rule 13).
 0.5; `mod` is floored, `rem` truncates; and `200 + 10%` is 200.1, not the pocket-calculator 220); `^` never means xor.
 **Tests:** a table with the cases above and every pair of operators; a generator of random trees where `parse(print(t)) == t`; errors with spans for `1+`, `(1`, `1)`, `f(`, `,`.
 **Done when:** those pass, a 100,000-string fuzz throws only `CalcError`, and on the big stack 199,999 terms of `1+1+…` parse, and 1,000,000 give a `CalcError` with a span.
+**From B2 (2026-11-25):** `mod`, `rem`, `xor` and `to` arrive as their own token kinds, not identifiers, so an identifier always starts an operand and a keyword never does. `°` and `#` arrive as `Degree` and `Hash`: refuse them here, by name. π, τ and φ are one-character identifiers that never join a name, so `2πr` is three tokens. `<` and `>` alone are lexer errors until H1. `ErrorKind` already lists B4's eight kinds. The fuzz in `LexerFuzzTests` has a weighted alphabet worth reusing.
 
 ### B4. Evaluator and float core
 **Goal:** evaluate a tree at a target and mode, each operation correctly rounded, returning a value and flags.
@@ -292,6 +293,7 @@ on a big stack (rule 13), and test on one.
 independently. `0.1+0.2` at 53 bits. One test per error kind. Keep the tree generator: later backends reuse it.
 **Mutations, about 25:** an operator used instead of the context; a mode ignored; evaluation order; a flag not checked; the wrong error kind; a literal parsed then converted.
 **Done when:** the oracles agree, the battery is red, and `calc-worker --eval "0.1+0.2" --bits 53` prints 0.30000000000000004.
+**From B2 (2026-11-25):** a number token's text is raw. Decimal may be `1.` or `.5`, both of which `ieee.Parse` takes. Underscores may be in the exponent too, which Natural refuses, so strip them all first. Hex and binary fractions always have their `p`, uppercase or not. `0B` and `0O` are allowed as well as `0X`: `ApInt.Parse` takes `0B101`, but Natural has no octal at all, hence Horner. Probed against Natural on 2026-11-25.
 
 ### B5. Functions and powers
 **Goal:** the function table, the ten plain functions, and correctly rounded integer powers.

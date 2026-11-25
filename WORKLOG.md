@@ -102,3 +102,35 @@ there, passed with the copy step removed. It runs the worker now. C1's brief say
 project probably can't reference the net10.0-windows App.
 
 **Next:** B2, the lexer.
+
+## 2026-11-25, later: B2 done
+
+The lexer: `Calc.Syntax/Lexer.cs`, `Token.cs`, `TextSpan.cs` and `CalcError.cs`. Text goes to tokens with spans, and bad input
+gives only a `CalcError` of kind Syntax, with a span and a plain message. It loops and never recurses: a million-term sum lexes
+on a 256 KB stack in well under a second. 127 tests in all, 119 of them the lexer's.
+
+**Tested against an oracle:** `ReferenceLexer`, a second lexer written from the brief with regular expressions, sharing no code.
+The two agree on 100,000 random strings from a weighted alphabet, 57% of them errors. Another 100,000 strings of any
+UTF-16, lone surrogates included, give tokens or a `CalcError` and nothing else, with spans in range. The table holds every number
+form and every error, with spans.
+
+**Mutations:** 20, all predicted red, all red. The oracle fuzz caught 16 of them alone. The battery is kept at
+`tests/mutations/b2-lexer.py`, so it survives this chat.
+
+**Checked against Natural first:** it accepts more than the brief allows: `1.`, `0x1.p3`, and `0x1.8` with no `p`, which it reads
+as 1.5. The brief's rule stands, because `0x1.8e2` would otherwise be a hex fraction to someone who meant 180. Binary fractions
+need their `p` too, for the same rule. Natural has no octal, and refuses underscores in exponents. B4's brief now says so.
+
+**Choices made here:**
+- π, τ and φ are names on their own, so `2πr` is 2·π·r and `rπ` is r·π. Other Greek letters are ordinary letters in names.
+- `1.` is a number, as in Natural, so a keypad's `5.` evaluates.
+- `0B` and `0O` are prefixes too. Otherwise `0B101` would lex as 0 times a name.
+- `mod`, `rem`, `xor` and `to` are their own token kinds. `°` and `#` lex, for B3 to refuse by name. `<` and `>` alone are errors
+  until H1.
+- `ErrorKind` holds B4's eight kinds already.
+- Only the brief's aliases: an en dash or `⋅` is refused, naming the character.
+
+**Found on the way:** xUnit mangles a lone surrogate in `[InlineData]`, so those cases are facts. And I hit the Python-heredoc
+backslash trap again, the one in the notebook since B1: for anything with a Windows path, use the Edit tool.
+
+**Next:** B3, the parser. Its brief asks Matthew one question, about `1/2x`, `%` and `^`.
