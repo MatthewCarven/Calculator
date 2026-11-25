@@ -1,11 +1,77 @@
-// calc-worker. B9 puts the stdio loop here. For now `--eval` proves Natural is linked in: it prints 1/3 at
-// 256 bits whatever the expression, and B4 makes it evaluate.
+// calc-worker. B9 puts the stdio loop here. For agents and people, --eval evaluates one expression:
+//   calc-worker --eval "0.1+0.2" [--bits 53 | --format binary64] [--mode nearest|zero|up|down]
+// The result goes to stdout, any flags to stderr. An error goes to stderr, with exit code 1; bad arguments, 2.
 
-if (args is ["--eval", _])
+using Calc.Engine.Eval;
+using Calc.Engine.Values;
+using Calc.Syntax;
+using Natural;
+
+if (args.Length < 2 || args.Length % 2 != 0 || args[0] != "--eval") return Usage();
+
+string source = args[1];
+Target target = Target.Bits(256);
+RoundingMode mode = RoundingMode.ToNearestEven;
+for (int i = 2; i < args.Length; i += 2)
 {
-    Console.WriteLine(Calc.Engine.Link.OneThird());
-    return 0;
+    string value = args[i + 1];
+    switch (args[i])
+    {
+        case "--bits" when int.TryParse(value, out int bits) && bits >= 1 && bits <= ApFloat.MaxPrecision:
+            target = Target.Bits(bits);
+            break;
+        case "--format" when Format(value) is IeeeFormat format:
+            target = Target.Of(format);
+            break;
+        case "--mode" when Mode(value) is RoundingMode m:
+            mode = m;
+            break;
+        default:
+            return Usage();
+    }
 }
 
-Console.Error.WriteLine("usage: calc-worker --eval <expression>");
-return 2;
+// Parse and evaluate on a big stack, as the loop will (rule 13).
+Outcome result = default;
+CalcError? error = null;
+var compute = new Thread(() =>
+{
+    try { result = Evaluator.Run(source, target, mode); }
+    catch (Exception e) { error = ErrorMap.From(e, null); }
+}, 256 << 20);
+compute.Start();
+compute.Join();
+
+if (error is not null)
+{
+    Console.Error.WriteLine($"{error.Kind}{(error.Span is TextSpan span ? $" at {span}" : "")}: {error.Message}");
+    return 1;
+}
+Console.WriteLine(result.Value);
+if (result.Flags != IeeeFlags.None) Console.Error.WriteLine($"flags: {result.Flags}");
+return 0;
+
+static IeeeFormat? Format(string name) => name switch
+{
+    "binary16" => IeeeFormat.Binary16,
+    "binary32" => IeeeFormat.Binary32,
+    "binary64" => IeeeFormat.Binary64,
+    "binary128" => IeeeFormat.Binary128,
+    "binary256" => IeeeFormat.Binary256,
+    _ => null,
+};
+
+static RoundingMode? Mode(string name) => name switch
+{
+    "nearest" => RoundingMode.ToNearestEven,
+    "zero" => RoundingMode.TowardZero,
+    "up" => RoundingMode.TowardPositive,
+    "down" => RoundingMode.TowardNegative,
+    _ => null,
+};
+
+static int Usage()
+{
+    Console.Error.WriteLine("usage: calc-worker --eval <expression> [--bits <1 to 2^30> | --format binary16|32|64|128|256] [--mode nearest|zero|up|down]");
+    return 2;
+}

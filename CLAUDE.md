@@ -1,7 +1,7 @@
 # Calc
 
-A Windows desktop calculator with Natural (`../Natural`) as its number type. The solution skeleton (B1), the lexer (B2) and
-the parser (B3) are built. The evaluator is next.
+A Windows desktop calculator with Natural (`../Natural`) as its number type. The solution skeleton (B1), the lexer (B2), the
+parser (B3) and the evaluator with its float core (B4) are built. Functions and powers are next.
 
 The folder is `Calc`, and its GitHub repo is [MatthewCarven/Calculator](https://github.com/MatthewCarven/Calculator), which is public.
 
@@ -20,13 +20,15 @@ Natural's sessions (A, D1, D2, T, I18 to I22) belong in a chat opened in the Nat
 ```
 dotnet build Calc.slnx
 dotnet test Calc.slnx
-src/Calc.Worker/bin/Debug/net10.0/calc-worker.exe --eval "1+1"
+src/Calc.Worker/bin/Debug/net10.0/calc-worker.exe --eval "0.1+0.2" --bits 53
+src/Calc.Worker/bin/Debug/net10.0/calc-worker.exe --eval "1/0" --format binary64 --mode up
 dotnet run --project src/Calc.Cli
 dotnet build Calc.slnx -p:NaturalRoot=<folder>
 ```
 
-The last one builds against another Natural checkout, such as a worktree, while a Natural session is building its own (rule 17).
-Until B4, `--eval` prints 1/3 at 256 bits whatever it's given.
+`--eval` takes `--bits` (default 256) or `--format binary16|32|64|128|256`, and `--mode nearest|zero|up|down`. It prints the
+result to stdout and any flags to stderr; an error goes to stderr with its kind and span, exit code 1. The last command builds
+against another Natural checkout, such as a worktree, while a Natural session is building its own (rule 17).
 
 ## Layout
 
@@ -36,14 +38,14 @@ Until B4, `--eval` prints 1/3 at 256 bits whatever it's given.
 | `src/WorkerBeside.targets` | Builds `calc-worker` first and copies its whole output beside a program that mustn't reference it. Imported by Calc.Cli, both test projects that run the worker, and Calc.App from C1 |
 | `src/Calc.Syntax` | `Lexer` (text to `Token`s, by loops, never recursion); `Parser` (tokens to a tree of `Node`s, in `Ast.cs`, by Pratt parsing, refusing past 200,000 levels or a low stack); `Printer` (`Print` reads back to the same tree, `Understood` is the on-screen form, as in `(1/2)·x`); `TextSpan`; `CalcError` with its `ErrorKind` |
 | `src/Calc.Protocol` | `Wire`: the wire version and the worker's file name |
-| `src/Calc.Engine` | `Link`, B1's proof that Natural is linked in, until B4's evaluator replaces it. Errors early, by name, if Natural isn't where `NaturalRoot` says |
-| `src/Calc.Worker` | `calc-worker`: `--eval` now, the stdio loop in B9 |
+| `src/Calc.Engine` | `Values/`: `Target` (bits or an `IeeeFormat`) and `Value` (`FloatValue` now). `Eval/`: `Evaluator` (walks the tree, left before right, knowing no number types), `IArithmetic` and `FloatArithmetic` (every operation through one `IeeeContext`; Mathematical policy at bits, IEEE at a format), `Names` (constants, `Ans`), `ErrorMap` (rule 12). Errors early, by name, if Natural isn't where `NaturalRoot` says |
+| `src/Calc.Worker` | `calc-worker`: `--eval`, on a 256 MiB thread, now; the stdio loop in B9 |
 | `src/Calc.Client` | Empty until B10 |
 | `src/Calc.Cli` | Says whether the worker landed beside it, until B11 |
 | `tests/Directory.Build.props` | The xunit packages, the same versions as Natural's tests |
-| `tests/Calc.Engine.Tests` | `LinkTests`, against a BigInteger oracle. `Syntax/`: the lexer's table, and fuzzes against `ReferenceLexer`, a second lexer written with regular expressions; the parser's table, every operator pair, round trips of `TreeGenerator`'s random trees (`TreeText` shows a tree as an S-expression), a fuzz, and the depth tests, which run alone in the "Deep stacks" collection |
+| `tests/Calc.Engine.Tests` | `Eval/`: random arithmetic trees from `ArithmeticTreeGenerator`, bit for bit against `double` and `float`, and at random precisions and modes against `RationalOracle`, a BigInteger fraction that rounds by its own code; a table of literals, flags and every error kind; depth tests. `Syntax/`: the lexer's table, and fuzzes against `ReferenceLexer`, a second lexer written with regular expressions; the parser's table, every operator pair, round trips of `TreeGenerator`'s random trees (`TreeText` shows a tree as an S-expression), a fuzz, and the depth tests, which run alone in the "Deep stacks" collection |
 | `tests/mutations/` | Each session's mutation battery, so it can be run again |
-| `tests/Calc.Worker.Tests` | `EvalFlagTests`, which run the real exe |
+| `tests/Calc.Worker.Tests` | `EvalFlagTests`, which run the real exe's `--eval` |
 | `tests/Calc.Client.Tests` | `LayeringTests` (rule 1), and `WorkerBesideTests`, which runs the worker from beside the tests. References Calc.Cli so it can read it |
 
 ## Gotchas

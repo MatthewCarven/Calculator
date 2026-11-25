@@ -10,7 +10,7 @@ public class WorkerBesideTests
     [Fact]
     public async Task TheWorkerRunsFromBesideTheTests()
     {
-        var start = new ProcessStartInfo(Path.Combine(AppContext.BaseDirectory, Wire.WorkerFileName), ["--eval", "x"])
+        var start = new ProcessStartInfo(Path.Combine(AppContext.BaseDirectory, Wire.WorkerFileName), ["--eval", "1/3"])
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,

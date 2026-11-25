@@ -78,7 +78,7 @@ https://github.com/MatthewCarven/Calculator, which is public, so nothing private
 - [x] B1 Solution skeleton (2026-11-25: 6 projects and 3 test projects, 8 tests; the copy step is shared as `src/WorkerBeside.targets`)
 - [x] B2 Lexer (2026-11-25: 119 lexer tests, agreeing with a regex oracle on 100,000 strings; 20 of 20 mutations red)
 - [x] B3 Parser (2026-11-26: 150 parser tests, 20,000 random trees round-tripped; 24 of 24 mutations red, one after a new test)
-- [ ] B4 Evaluator and float core
+- [x] B4 Evaluator and float core (2026-11-26: 20,000 trees bit for bit against double and float, 5,000 against a rational oracle; 27 of 28 mutations red, 1 equivalent)
 - [ ] B5 Functions and powers
 - [ ] B6 Result text
 - [ ] B7 Exact values and operators
@@ -299,6 +299,7 @@ independently. `0.1+0.2` at 53 bits. One test per error kind. Keep the tree gene
 **From B2 (2026-11-25):** a number token's text is raw. Decimal may be `1.` or `.5`, both of which `ieee.Parse` takes. Underscores may be in the exponent too, which Natural refuses, so strip them all first. Hex and binary fractions always have their `p`, uppercase or not. `0B` and `0O` are allowed as well as `0X`: `ApInt.Parse` takes `0B101`, but Natural has no octal at all, hence Horner. Probed against Natural on 2026-11-25.
 
 ### B5. Functions and powers
+**From B4 (2026-11-26):** every `IArithmetic` method takes the span its errors point at. Follow `FloatArithmetic`'s pattern: read `_ieee.Flags` before, then `Checked(result, before, at)`, which at bits turns a newly raised DivideByZero into `DivideByZero` and Invalid into `Domain`; that DivideByZero check is untestable until a function such as log(0) can raise it. Replace the `NotYet` stubs. `²` and `³` already call `Power` with the literal 2 or 3, `√` calls `Call("sqrt", …)`, and `Compare` exists, tested. Reuse `ArithmeticTreeGenerator` and `RationalOracle` in `tests/…/Eval`, adding leaves and operations. An `Ans` from another precision is refused in `Import`.
 **Goal:** the function table, the ten plain functions, and correctly rounded integer powers.
 **Needs:** B4.
 **Files:** `Eval/FunctionTable.cs`, `Eval/PowerFloat.cs`, tests.

@@ -174,3 +174,39 @@ with 300,000 arguments, turned it red. The battery is `tests/mutations/b3-parser
 - Too deep is `TooBig`. On screen, `Understood` brackets only a division, mod or rem on an implicit product's left.
 
 **Next:** B4, the evaluator and float core. Its brief now carries B3's stack lessons.
+
+## 2026-11-26, later: B4 done
+
+The evaluator and float core: `Calc.Engine/Values/Target.cs` and `Value.cs`, and `Eval/IArithmetic.cs`, `FloatArithmetic.cs`,
+`Evaluator.cs`, `Names.cs` and `ErrorMap.cs`. A tree evaluates at a target, bits or an IEEE format, in a rounding mode, each
+operation correctly rounded through the evaluation's one `IeeeContext`, returning a value and the flags. + − × ÷ and negate
+work; everything else says not available, by name and span, until B5. `calc-worker --eval` really evaluates now, with
+`--bits`, `--format` and `--mode`, on a 256 MiB thread. B1's `Link` placeholder is gone. 371 tests in all.
+
+**Done when, checked:** `calc-worker --eval "0.1+0.2" --bits 53` prints 0.30000000000000004.
+
+**Tested against oracles:** 20,000 random trees at binary64, bit for bit against C#'s `double`, and 20,000 at binary32 against
+`float`, with extremes for overflow and subnormals and literals in every form; 5,000 at random precisions from 2 to 300 bits
+in all four modes against `RationalOracle`, a tests-only BigInteger fraction that rounds by its own code, the Inexact flag
+included. All three agreed first time. Also tested: literals in every form, and two values that are rounded wrongly if a
+literal is rounded twice (a decimal 10^-90 above a 53-bit midpoint, and a whole number just above one); flags at bits and
+at a format; −0; each error kind with its span; left before right; and depth.
+
+**Mutations:** 28, in the brief's categories. 27 red, as predicted. M9, which skips the DivideByZero flag check, is
+equivalent, as predicted: at bits only a division can raise it, and division checks for a zero divisor first. The check
+stays, for B5's functions. The battery stopped once, printing a `−` on Windows' old code page; its output is UTF-8 now.
+
+**Stack:** the evaluator takes 403 bytes a level in Debug and at most 168 in Release, so 200,000 levels need at most 76 MiB.
+It has the parser's stack guard, and a deep tree on a 1 MiB stack is a clean `TooBig`.
+
+**Choices made here:**
+- At bits, 0/0 is `DivideByZero`, as the brief says, and an infinite `Ans` minus itself is `Domain`. At a format, ∞ and NaN
+  are values.
+- `to` is refused before its operands are evaluated, since its right side names a format or unit, not a value.
+- An unknown name is `Syntax`. Constants (π, τ, φ, e and their spelled names) and a missing `Ans` are `NotAvailable`. An
+  `Ans` from another precision is `Internal`: rule 14's second wall.
+- Negation is `ieee.Convert(-x)`, exact and through the context, which keeps −0. `0 − x` would lose it.
+- `²` and `³` call `Power`, and `√` calls the `sqrt` function, so B5 fills them in where they belong.
+- Until B6, a value prints as `"R"` up to 2,048 bits and `"E99"` past that.
+
+**Next:** B5, functions and powers. Its brief carries B4's notes.
