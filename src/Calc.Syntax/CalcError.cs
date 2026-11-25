@@ -10,7 +10,7 @@ public enum ErrorKind
     DivideByZero,
     /// <summary>Past the exponent range.</summary>
     Overflow,
-    /// <summary>Too big to hold in memory or to print.</summary>
+    /// <summary>Too big to hold in memory, to print, or to nest: the parser refuses more than 200,000 levels.</summary>
     TooBig,
     /// <summary>Not built yet.</summary>
     NotAvailable,

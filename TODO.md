@@ -77,7 +77,7 @@ https://github.com/MatthewCarven/Calculator, which is public, so nothing private
 **B. Engine**
 - [x] B1 Solution skeleton (2026-11-25: 6 projects and 3 test projects, 8 tests; the copy step is shared as `src/WorkerBeside.targets`)
 - [x] B2 Lexer (2026-11-25: 119 lexer tests, agreeing with a regex oracle on 100,000 strings; 20 of 20 mutations red)
-- [ ] B3 Parser
+- [x] B3 Parser (2026-11-26: 150 parser tests, 20,000 random trees round-tripped; 24 of 24 mutations red, one after a new test)
 - [ ] B4 Evaluator and float core
 - [ ] B5 Functions and powers
 - [ ] B6 Result text
@@ -294,6 +294,8 @@ on a big stack (rule 13), and test on one.
 independently. `0.1+0.2` at 53 bits. One test per error kind. Keep the tree generator: later backends reuse it.
 **Mutations, about 25:** an operator used instead of the context; a mode ignored; evaluation order; a flag not checked; the wrong error kind; a literal parsed then converted.
 **Done when:** the oracles agree, the battery is red, and `calc-worker --eval "0.1+0.2" --bits 53` prints 0.30000000000000004.
+**From B3 (2026-11-26), about the stack:** the evaluator walks trees up to 200,000 deep, and a Debug build gives every local and temporary its own stack slot. B3's parser first took 2,456 bytes a level in Debug, so 200,000 levels didn't fit 256 MiB, and each crash popped a Windows dialog on Matthew's screen. Do as `Parser` does: keep the recursive method lean, building errors and messages in `NoInlining` helpers; call `RuntimeHelpers.TryEnsureSufficientExecutionStack()` on each level and turn false into `TooBig`, so nothing can overflow; and measure bytes a level in Debug and Release with an in-process binary search, never by crashing. Put deep-stack tests in xUnit's "Deep stacks" collection, which runs alone: GC scans every thread's stack, and two deep ones side by side took ten times as long.
+**From B3, about the tree:** `Node` classes are not records, because generated Equals, GetHashCode and ToString would recurse. Each node stores its `Depth`. An implicit product is `Multiply` with `IsImplicit`, and its `OpSpan` is the whole product. `to` parses as `BinaryOp.To`, so evaluate it to `NotAvailable`; unary `+` is kept as `PrefixOp.Plus`. `TreeGenerator` and `TreeText` in `tests/…/Syntax` are there to reuse.
 **From B2 (2026-11-25):** a number token's text is raw. Decimal may be `1.` or `.5`, both of which `ieee.Parse` takes. Underscores may be in the exponent too, which Natural refuses, so strip them all first. Hex and binary fractions always have their `p`, uppercase or not. `0B` and `0O` are allowed as well as `0X`: `ApInt.Parse` takes `0B101`, but Natural has no octal at all, hence Horner. Probed against Natural on 2026-11-25.
 
 ### B5. Functions and powers

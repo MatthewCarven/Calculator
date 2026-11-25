@@ -134,3 +134,43 @@ need their `p` too, for the same rule. Natural has no octal, and refuses undersc
 backslash trap again, the one in the notebook since B1: for anything with a Windows path, use the Edit tool.
 
 **Next:** B3, the parser. Its brief asks Matthew one question, about `1/2x`, `%` and `^`.
+
+## 2026-11-26: B3 done
+
+The parser: `Calc.Syntax/Ast.cs`, `Parser.cs` and `Printer.cs`. Tokens become a tree by Pratt parsing, and bad input gives
+only a `CalcError` with a span. Matthew took all three recommendations on 2026-11-25: `1/2x` is (1/2)·x and `6/2(1+2)` is 9,
+`%` is ÷100 and `7 % 3` is an error saying to use mod, and `^` is always a power. `Printer.Print` reads back to the same tree;
+`Printer.Understood` is the on-screen form, such as `(1/2)·x`, and is null when nothing was implicit. 277 tests in all, 150 of
+them the parser's.
+
+**Tested:** a table of the brief's cases and every error with its span; every pair of binary operators, every prefix and
+postfix with every binary, each worked out from a separate copy of the precedence table; 20,000 random trees built directly,
+printed and parsed back, with every node's span checked to parse alone to the same subtree; a 100,000-string fuzz throwing
+only `CalcError`; and the depth limit on a 256 MiB stack.
+
+**Found on the way:**
+- Two printer bugs, before they shipped. One I found reading it back: `(2x)(3)` printed as `2 x (3)`, which reads as 2 times
+  the call `x(3)`. The random trees found the other: a right side starting with its own bracket, as in `e (…)^2`, made the name
+  before it a call.
+- **The stack.** The depth tests overflowed the 256 MiB stack and crashed the test host, and each crash popped a Windows
+  dialog on Matthew's screen. Measured in process: 2,456 bytes a level of brackets in Debug, so 200,000 levels needed about
+  490 MB. Errors are now built in helpers outside the recursion and tokens are read in place: 645 bytes in Debug, 824 for
+  calls, at most 419 in Release, so 200,000 levels need at most 157 MiB. And `RuntimeHelpers.TryEnsureSufficientExecutionStack()`
+  on each level turns a low stack into `TooBig`, so the parser can't overflow on any thread. B4's brief now says to do the
+  same, because the evaluator walks these trees.
+- Deep-stack tests run alone now, in a "Deep stacks" collection. Every GC scans every thread's stack, and two 200,000-frame
+  tests side by side took 20 s each where alone they took 2. The Engine suite went from 1.4 minutes to about 20 s.
+
+**Mutations:** 24, all predicted red. 23 were, first time. P11, which stops the depth counter coming back down after each
+sub-expression, survived: every wide input in the tests was a flat sum, whose depth equals its length. `WideIsNotDeep`, a call
+with 300,000 arguments, turned it red. The battery is `tests/mutations/b3-parser.py`.
+
+**Choices made here:**
+- Nodes are classes, not records, because generated Equals, GetHashCode and ToString would recurse. Each stores its depth.
+- An implicit product is `Multiply` with `IsImplicit`. `Print` joins one with a space, which is always safe: `2` beside the
+  name `e5x` would otherwise read back as `2e5`, `x`.
+- A name before `(` is a call, spaces or not, so `π(2)` is a call that B5 will refuse. `to` parses, at the loosest rank, for
+  B4 to call not available. `°`, `#` and `=` are refused by name, as not available yet.
+- Too deep is `TooBig`. On screen, `Understood` brackets only a division, mod or rem on an implicit product's left.
+
+**Next:** B4, the evaluator and float core. Its brief now carries B3's stack lessons.
