@@ -70,7 +70,7 @@ public sealed class FloatArithmetic(Target target, RoundingMode mode) : IArithme
     public Value Divide(Value a, Value b, TextSpan at)
     {
         ApFloat y = F(b);
-        if (_mathematical && y.IsZero) throw new CalcError(ErrorKind.DivideByZero, "Division by zero.", at);
+        if (_mathematical && y.IsZero) throw DivisionByZero(at);
         var before = _ieee.Flags;
         return Checked(_ieee.Divide(F(a), y), before, at);
     }
@@ -82,18 +82,124 @@ public sealed class FloatArithmetic(Target target, RoundingMode mode) : IArithme
         return Checked(_ieee.Convert(-F(a)), before, at);
     }
 
-    public Value Power(Value a, Value b, TextSpan at) => throw NotYet("Powers", at);
-    public Value Mod(Value a, Value b, TextSpan at) => throw NotYet("mod", at);
-    public Value Rem(Value a, Value b, TextSpan at) => throw NotYet("rem", at);
-    public Value Percent(Value a, TextSpan at) => throw NotYet("%", at);
+    /// <summary>x^y, correctly rounded for any integer y: see <see cref="PowerFloat"/>.</summary>
+    public Value Power(Value a, Value b, TextSpan at)
+    {
+        var before = _ieee.Flags;
+        return Checked(PowerFloat.Power(_ieee, F(a), F(b), at), before, at);
+    }
+
+    /// <summary>Floored: the result takes the divisor's sign, so -7 mod 3 is 2. Exact, then rounded once.</summary>
+    public Value Mod(Value a, Value b, TextSpan at)
+    {
+        ApFloat x = F(a), y = F(b);
+        if (_mathematical && y.IsZero) throw DivisionByZero(at);
+        var before = _ieee.Flags;
+        // The truncated remainder is exact. Where its sign differs from y's, the floored one is r + y, rounded once.
+        ApFloat r = _ieee.Remainder(x, y);
+        if (r.IsZero) r = ApFloat.CopySign(r, y);
+        else if (!r.IsNaN && r.IsNegative != y.IsNegative) r = _ieee.Add(r, y);
+        return Checked(r, before, at);
+    }
+
+    /// <summary>Truncated, as C#'s %: the result takes the dividend's sign, so -7 rem 3 is -1. Exact.</summary>
+    public Value Rem(Value a, Value b, TextSpan at)
+    {
+        ApFloat y = F(b);
+        if (_mathematical && y.IsZero) throw DivisionByZero(at);
+        var before = _ieee.Flags;
+        return Checked(_ieee.Remainder(F(a), y), before, at);
+    }
+
+    /// <summary>÷100, rounded once (Matthew, 2026-11-25): 200 + 10% is 200.1.</summary>
+    public Value Percent(Value a, TextSpan at)
+    {
+        var before = _ieee.Flags;
+        return Checked(_ieee.Divide(F(a), 100), before, at);
+    }
+
     public Value Factorial(Value a, TextSpan at) => throw NotYet("Factorials", at);
-    public Value And(Value a, Value b, TextSpan at) => throw NotYet("Bit operators", at);
-    public Value Or(Value a, Value b, TextSpan at) => throw NotYet("Bit operators", at);
-    public Value Xor(Value a, Value b, TextSpan at) => throw NotYet("Bit operators", at);
-    public Value ShiftLeft(Value a, Value b, TextSpan at) => throw NotYet("Bit operators", at);
-    public Value ShiftRight(Value a, Value b, TextSpan at) => throw NotYet("Bit operators", at);
-    public Value Not(Value a, TextSpan at) => throw NotYet("Bit operators", at);
-    public Value Call(string name, IReadOnlyList<Value> arguments, TextSpan at) => throw NotYet($"{name}()", at);
+
+    // The bit operators work on whole numbers, as two's complement integers of unlimited width: ~5 is -6. A fraction,
+    // infinity or NaN is Domain, at a format too, since IEEE has no bit operators.
+
+    public Value And(Value a, Value b, TextSpan at) => FromWhole(Whole(a, at) & Whole(b, at), at);
+    public Value Or(Value a, Value b, TextSpan at) => FromWhole(Whole(a, at) | Whole(b, at), at);
+    public Value Xor(Value a, Value b, TextSpan at) => FromWhole(Whole(a, at) ^ Whole(b, at), at);
+    public Value Not(Value a, TextSpan at) => FromWhole(~Whole(a, at), at);
+
+    /// <summary>floor(x·2^n), so a negative n shifts right: x &lt;&lt; n is x &gt;&gt; -n.</summary>
+    public Value ShiftLeft(Value a, Value b, TextSpan at) => Shift(a, b, left: true, at);
+
+    /// <summary>floor(x·2^-n): an arithmetic shift, so -7 &gt;&gt; 1 is -4.</summary>
+    public Value ShiftRight(Value a, Value b, TextSpan at) => Shift(a, b, left: false, at);
+
+    public Value Call(string name, IReadOnlyList<Value> arguments, TextSpan at)
+    {
+        FunctionTable.Check(name, arguments.Count, at);
+        var before = _ieee.Flags;
+        ApFloat result = name switch
+        {
+            "sqrt" => _ieee.Sqrt(F(arguments[0])),
+            "abs" => _ieee.Convert(ApFloat.Abs(F(arguments[0]))),
+            "sign" => Sign(F(arguments[0])),
+            // Natural's own floor and its kin are exact and raise nothing: IEEE's roundToIntegralExact would raise
+            // Inexact for floor(1.5), whose answer, 1, is exact.
+            "floor" => _ieee.Convert(ApFloat.Floor(F(arguments[0]))),
+            "ceil" => _ieee.Convert(ApFloat.Ceiling(F(arguments[0]))),
+            "trunc" => _ieee.Convert(ApFloat.Truncate(F(arguments[0]))),
+            "round" => _ieee.Convert(ApFloat.Round(F(arguments[0]))),
+            "max" => _ieee.Convert(Fold(arguments, ApFloat.Max)),
+            "min" => _ieee.Convert(Fold(arguments, ApFloat.Min)),
+            "fma" => _ieee.FusedMultiplyAdd(F(arguments[0]), F(arguments[1]), F(arguments[2])),
+            _ => throw new CalcError(ErrorKind.Internal, $"{name} is listed as available, but FloatArithmetic has no {name}.", at),
+        };
+        return Checked(result, before, at);
+    }
+
+    /// <summary>-1, or 1; a zero keeps its own sign, and NaN stays NaN.</summary>
+    private ApFloat Sign(ApFloat x) => x.IsZero || x.IsNaN ? x : _ieee.Convert(x.IsNegative ? -1 : 1);
+
+    private static ApFloat Fold(IReadOnlyList<Value> arguments, Func<ApFloat, ApFloat, ApFloat> pick)
+    {
+        ApFloat result = F(arguments[0]);
+        for (int i = 1; i < arguments.Count; i++) result = pick(result, F(arguments[i]));
+        return result;
+    }
+
+    /// <summary>Bit operators stop at this many bits, as B7's exact integers will: 2^24, about 5 million digits.</summary>
+    internal const long BitLimit = 1L << 24;
+
+    private static bool IsWhole(ApFloat x) => !x.IsNaN && !x.IsInfinity && ApFloat.IsInteger(x);
+
+    private static ApInt Whole(Value value, TextSpan at)
+    {
+        ApFloat x = F(value);
+        if (!IsWhole(x)) throw new CalcError(ErrorKind.Domain, "Bit operators need whole numbers.", at);
+        if (!x.IsZero && x.Exponent + x.Significand.BitLength > BitLimit)
+            throw new CalcError(ErrorKind.TooBig, $"That's too large for a bit operator: more than {BitLimit:N0} bits.", at);
+        return (ApInt)x;
+    }
+
+    private FloatValue FromWhole(ApInt n, TextSpan at)
+    {
+        var before = _ieee.Flags;
+        return Checked(_ieee.Convert(n), before, at);
+    }
+
+    private FloatValue Shift(Value a, Value b, bool left, TextSpan at)
+    {
+        ApFloat x = F(a), count = F(b);
+        // Whole numbers, but no size limit: scaling allocates nothing.
+        if (!IsWhole(x)) throw new CalcError(ErrorKind.Domain, "Bit operators need whole numbers.", at);
+        if (!IsWhole(count)) throw new CalcError(ErrorKind.Domain, "A shift needs a whole number of places.", at);
+        long n = long.CreateChecked((ApInt)count);
+        // x·2^n is exact at x's precision with an unbounded exponent, and so is its floor; only the last step rounds,
+        // into the target. Scaling inside a format first could round a tiny negative to -0, whose floor is wrong.
+        ApFloat scaled = ApFloat.Multiply(x, new ApFloat(1, left ? n : checked(-n), 1), x.Precision);
+        var before = _ieee.Flags;
+        return Checked(_ieee.Convert(ApFloat.Floor(scaled)), before, at);
+    }
 
     public int? Compare(Value a, Value b)
     {
@@ -128,6 +234,8 @@ public sealed class FloatArithmetic(Target target, RoundingMode mode) : IArithme
         foreach (char c in s.AsSpan(2)) n = n * 8 + (c - '0');
         return n;
     }
+
+    private static CalcError DivisionByZero(TextSpan at) => new(ErrorKind.DivideByZero, "Division by zero.", at);
 
     private static CalcError NotYet(string what, TextSpan at) =>
         new(ErrorKind.NotAvailable, $"{what} {(what.EndsWith('s') ? "aren't" : "isn't")} available yet.", at);

@@ -27,11 +27,10 @@ public class EvaluatorDepthTests
         Evaluator.Run(Wrapped(open, inner, close, 199_998), Target.Bits(256), RoundingMode.ToNearestEven));
 
     [Fact]
-    public void TheDeepestCallsComeBackAsACleanError() => OnStack(256, () =>
+    public void TheDeepestCallsEvaluate() => OnStack(256, () =>
     {
-        // Calls aren't built yet, but the arguments are evaluated first, all 199,998 deep.
-        var error = Assert.Throws<CalcError>(() => Evaluator.Run(Wrapped("f(", "1", ")", 199_998), Target.Bits(256), RoundingMode.ToNearestEven));
-        Assert.Equal(ErrorKind.NotAvailable, error.Kind);
+        var outcome = Evaluator.Run(Wrapped("abs(", "-1", ")", 199_998), Target.Bits(256), RoundingMode.ToNearestEven);
+        Assert.Equal(0, ((FloatValue)outcome.Value).Number.CompareTo(1));
     });
 
     [Fact]
