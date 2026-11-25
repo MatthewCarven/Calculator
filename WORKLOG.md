@@ -210,3 +210,45 @@ It has the parser's stack guard, and a deep tree on a 1 MiB stack is a clean `To
 - Until B6, a value prints as `"R"` up to 2,048 bits and `"E99"` past that.
 
 **Next:** B5, functions and powers. Its brief carries B4's notes.
+
+## 2026-11-26, later still: B5 done
+
+Functions and powers: `Calc.Engine/Eval/FunctionTable.cs` and `PowerFloat.cs`, and the rest of `FloatArithmetic`. The ten
+functions work (sqrt, abs, sign, floor, ceil, trunc, round with ties to even, max, min, fma), and so do floored mod,
+truncated rem, % as ÷100, and the bit operators on whole numbers. `^` is correctly rounded for every integer exponent, and
+^0.5 is sqrt. The function table also lists the 25 functions waiting on Natural, each with its W session, so they're
+known names that say not available. 445 tests in all.
+
+**Tested against oracles:** sqrt, floor, ceil, trunc, round, abs, sign, max, min and fma bit for bit against `Math` at
+binary64, specials included, and sqrt and fma against `MathF` at binary32; sqrt at random precisions in all four modes by an
+exact check, squaring in fractions; mod, rem, %, the rounding functions and fma against `RationalOracle` at random
+precisions and modes; 2,000 random integer powers, on both routes, negative bases and exponents, against the oracle,
+Inexact included; T10's specials, every pair, against `Math.Pow`; bit operators against `BigInteger`.
+
+**The brief was wrong once, and is corrected:** it said `3^(2^62)` overflows at bits. That's 2^(7.3×10¹⁸), and a long holds
+exponents to 9.2×10¹⁸, so it's a value, ending E+2200333419485199624. It only gave 1 when the exponent wrapped.
+`3^(2^63)` and `(2^(2^62))^2` are the overflows, and are tested.
+
+**Found on the way:** one of my own tests was wrong. It sent `786` as a literal at 7 bits, where it rounds to 784, so the
+calculator rightly worked out 438272^784 while the oracle used 786. Natural's directed squarings were checked step by
+step against BigInteger before I found it, and were right throughout. CLAUDE.md notes that every literal rounds,
+exponents too.
+
+**Mutations:** 31. 29 red; two equivalent, as predicted: both bounds rounded the same way, which only a true value within
+2^-64 of a rounding boundary would show, and Settle's extra Inexact, which converting differing ends raises anyway. On the
+first run M2's edit didn't build, and the script is fixed; and M21, checking the route guard as a product, survived until
+`1.1^(2^62)` at binary64 was added, where that product passes a ulong. The battery is `tests/mutations/b5-functions.py`.
+
+**Choices made here:**
+- floor, ceil, trunc and round use Natural's own exact versions, so floor(1.5) raises no Inexact: 1 is its exact answer.
+- A zero from mod takes the divisor's sign, as Python's does. `-5 mod ∞` is ∞ at a format, by the same rule.
+- Bit operators treat whole numbers as two's complement of unlimited width (~5 is -6), cap them at 2^24 bits as B7's
+  integers will be, and refuse a fraction, infinity or NaN as `Domain`, at a format too, since IEEE has none.
+- Shifts are floor(x·2^n), so `x << -1` is `x >> 1`, and they allocate nothing however far they go.
+- A negative base to a non-integer is `Domain` at bits and NaN at a format, by T10's table, rather than not available.
+- A base between ½ and 2 to an exponent past a long is not available, as the brief says, even 1.5, whose answer is
+  plainly too large; W2's Pow will settle those.
+- At a format, both bounds stop squaring once past the edge, each in the direction its products move. Otherwise the upper
+  bound in `1e300^1e16` would square on until its exponent outgrew a long.
+
+**Next:** B6, result text. Its brief now notes the far-out values B5 makes.

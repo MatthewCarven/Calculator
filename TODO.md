@@ -79,7 +79,7 @@ https://github.com/MatthewCarven/Calculator, which is public, so nothing private
 - [x] B2 Lexer (2026-11-25: 119 lexer tests, agreeing with a regex oracle on 100,000 strings; 20 of 20 mutations red)
 - [x] B3 Parser (2026-11-26: 150 parser tests, 20,000 random trees round-tripped; 24 of 24 mutations red, one after a new test)
 - [x] B4 Evaluator and float core (2026-11-26: 20,000 trees bit for bit against double and float, 5,000 against a rational oracle; 27 of 28 mutations red, 1 equivalent)
-- [ ] B5 Functions and powers
+- [x] B5 Functions and powers (2026-11-26: against Math, MathF, a rational oracle and an exact sqrt check; 29 of 31 mutations red, 2 equivalent)
 - [ ] B6 Result text
 - [ ] B7 Exact values and operators
 - [ ] B8 Exact functions and display
@@ -315,6 +315,7 @@ independently. `0.1+0.2` at 53 bits. One test per error kind. Keep the tree gene
 **Done when:** those pass and the battery is red.
 
 ### B6. Result text
+**From B5 (2026-11-26):** values can now be far out: `3^(2^62)` at 256 bits has a 19-digit decimal exponent (E+2200333419485199624), and `2^1000000` at 53 bits is E+301029, so `Short` must fit them in 40 characters. `FloatValue.ToString` is B4's stand-in ("R" up to 2,048 bits, else "E99"); replace it, and the worker's `--eval` output with it.
 **Goal:** a value to the text people see, cheaply, at any size.
 **Needs:** B5.
 **Files:** `Calc.Protocol/Digits.cs`, `Calc.Engine/Text/ResultText.cs`, `Text/TextOptions.cs`, tests.
@@ -328,6 +329,7 @@ independently. `0.1+0.2` at 53 bits. One test per error kind. Keep the tree gene
 **Done when:** those pass. Print 1/3 at 256 bits in each notation in the WORKLOG for Matthew to eyeball.
 
 ### B7. Exact values and operators
+**From B5 (2026-11-26):** the float path of `^` is `PowerFloat.Power(ieee, x, y, at)`, which reads y's value as it stands, so pass an exact y as itself: a literal y rounds to the target first, and at 7 bits `786` becomes 784. `FunctionTable.Check` is the one list of names and arities, for exact functions too (B8). Mod, rem, % and the bit operators in `FloatArithmetic` are the float behaviour the exact ones must match where both apply: floored mod, a zero taking the divisor's sign; bit operators on two's-complement whole numbers, capped at `FloatArithmetic.BitLimit` = 2^24 bits, the same as this brief's integer budget.
 **Goal:** integers and fractions stay exact until something irrational or too large forces a float.
 **Needs:** B6.
 **Files:** `Values/IntValue.cs`, `Values/RatioValue.cs`, `Eval/ExactArithmetic.cs`, `Text/Lossless.cs`, tests.

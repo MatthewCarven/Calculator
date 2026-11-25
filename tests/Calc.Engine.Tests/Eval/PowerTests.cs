@@ -143,6 +143,8 @@ public class PowerTests
         Assert.Equal(double.PositiveInfinity, D(Run("0.5^-2000", Binary64)));
         Assert.Equal(-0.0, D(Run("(-3)^-1001", Binary64)));
         Assert.True(double.IsNegative(D(Run("(-3)^-1001", Binary64))));
+        // A long significand to an exponent near 2^62: |n|·bitlen(m) is past a ulong, so the guard must be a division.
+        Assert.Equal(double.PositiveInfinity, D(Run("1.1^(2^62)", Binary64)));
         // Exactly at the thresholds for an exponent past a long: |x| = 2 and |x| = 1/2 are settled.
         Assert.Equal(double.PositiveInfinity, D(Run("2^(2^70)", Binary64)));
         Assert.Equal(0.0, D(Run("0.5^(2^70)", Binary64)));

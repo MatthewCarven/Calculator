@@ -1,7 +1,7 @@
 # Calc
 
 A Windows desktop calculator with Natural (`../Natural`) as its number type. The solution skeleton (B1), the lexer (B2), the
-parser (B3) and the evaluator with its float core (B4) are built. Functions and powers are next.
+parser (B3), the evaluator with its float core (B4), and functions and powers (B5) are built. Result text is next.
 
 The folder is `Calc`, and its GitHub repo is [MatthewCarven/Calculator](https://github.com/MatthewCarven/Calculator), which is public.
 
@@ -38,13 +38,13 @@ against another Natural checkout, such as a worktree, while a Natural session is
 | `src/WorkerBeside.targets` | Builds `calc-worker` first and copies its whole output beside a program that mustn't reference it. Imported by Calc.Cli, both test projects that run the worker, and Calc.App from C1 |
 | `src/Calc.Syntax` | `Lexer` (text to `Token`s, by loops, never recursion); `Parser` (tokens to a tree of `Node`s, in `Ast.cs`, by Pratt parsing, refusing past 200,000 levels or a low stack); `Printer` (`Print` reads back to the same tree, `Understood` is the on-screen form, as in `(1/2)·x`); `TextSpan`; `CalcError` with its `ErrorKind` |
 | `src/Calc.Protocol` | `Wire`: the wire version and the worker's file name |
-| `src/Calc.Engine` | `Values/`: `Target` (bits or an `IeeeFormat`) and `Value` (`FloatValue` now). `Eval/`: `Evaluator` (walks the tree, left before right, knowing no number types), `IArithmetic` and `FloatArithmetic` (every operation through one `IeeeContext`; Mathematical policy at bits, IEEE at a format), `Names` (constants, `Ans`), `ErrorMap` (rule 12). Errors early, by name, if Natural isn't where `NaturalRoot` says |
+| `src/Calc.Engine` | `Values/`: `Target` (bits or an `IeeeFormat`) and `Value` (`FloatValue` now). `Eval/`: `Evaluator` (walks the tree, left before right, knowing no number types), `IArithmetic` and `FloatArithmetic` (every operation through one `IeeeContext`; Mathematical policy at bits, IEEE at a format; floored mod, truncated rem, % as ÷100, bit operators on whole numbers), `FunctionTable` (every function's name, arity and the session it waits on), `PowerFloat` (integer powers: T10's specials, an exact route and a bounds route), `Names` (constants, `Ans`), `ErrorMap` (rule 12). Errors early, by name, if Natural isn't where `NaturalRoot` says |
 | `src/Calc.Worker` | `calc-worker`: `--eval`, on a 256 MiB thread, now; the stdio loop in B9 |
 | `src/Calc.Client` | Empty until B10 |
 | `src/Calc.Cli` | Says whether the worker landed beside it, until B11 |
 | `tests/Directory.Build.props` | The xunit packages, the same versions as Natural's tests |
-| `tests/Calc.Engine.Tests` | `Eval/`: random arithmetic trees from `ArithmeticTreeGenerator`, bit for bit against `double` and `float`, and at random precisions and modes against `RationalOracle`, a BigInteger fraction that rounds by its own code; a table of literals, flags and every error kind; depth tests. `Syntax/`: the lexer's table, and fuzzes against `ReferenceLexer`, a second lexer written with regular expressions; the parser's table, every operator pair, round trips of `TreeGenerator`'s random trees (`TreeText` shows a tree as an S-expression), a fuzz, and the depth tests, which run alone in the "Deep stacks" collection |
-| `tests/mutations/` | Each session's mutation battery, so it can be run again |
+| `tests/Calc.Engine.Tests` | `Eval/`: random arithmetic trees from `ArithmeticTreeGenerator`, bit for bit against `double` and `float`, and at random precisions and modes against `RationalOracle`, a BigInteger fraction that rounds by its own code; functions against `Math` and `MathF`, sqrt by an exact bracket check, powers, mod and the rest against the rational oracle, bit operators against `BigInteger`; a table of literals, flags and every error kind; depth tests. `Syntax/`: the lexer's table, and fuzzes against `ReferenceLexer`, a second lexer written with regular expressions; the parser's table, every operator pair, round trips of `TreeGenerator`'s random trees (`TreeText` shows a tree as an S-expression), a fuzz, and the depth tests, which run alone in the "Deep stacks" collection |
+| `tests/mutations/` | Each session's mutation battery, so it can be run again. Each matches its own session's code: later edits can leave an old mutation's text unmatched, which `check` reports |
 | `tests/Calc.Worker.Tests` | `EvalFlagTests`, which run the real exe's `--eval` |
 | `tests/Calc.Client.Tests` | `LayeringTests` (rule 1), and `WorkerBesideTests`, which runs the worker from beside the tests. References Calc.Cli so it can read it |
 
@@ -64,6 +64,8 @@ against another Natural checkout, such as a worktree, while a Natural session is
   in process, with the guard in place.
 - **Deep-stack tests go in the "Deep stacks" collection,** which runs alone. Every GC scans every thread's stack, so deep
   stacks side by side, or beside the fuzzes, ran ten times slower.
+- **Every literal rounds to the target, exponents too.** At 7 bits, `x^786` is x^784. A test that wants an exact operand
+  builds the `FloatValue` itself.
 - **xUnit mangles a lone surrogate in `[InlineData]`,** so a test case that needs one is a `[Fact]`.
 - **Mutation batteries** follow `../Natural/CLAUDE.md`'s recipe, running `dotnet test tests/<project>`. Don't build while one runs.
 - **Building Calc builds Natural's own project,** into Natural's `bin` and `obj`, with whichever SDK Calc gets. There's no
