@@ -271,6 +271,7 @@ product:** `1 000 000` and `1.2.3` are syntax errors. `%` directly followed by a
 thread with a 256 MiB stack (rule 13).
 **Ask once, with a preview of these three:** `1/2x` (recommended: `(1/2)·x`, same rank as `*`, left to right, with the understood form shown on screen); `%` (recommended: postfix ÷100, so `50%` is
 0.5; `mod` is floored, `rem` truncates; and `200 + 10%` is 200.1, not the pocket-calculator 220); `^` never means xor.
+**Answered (Matthew, 2026-11-25): all three as recommended.** `1/2x` is `(1/2)·x` and `6/2(1+2)` is 9, with the understood form on screen; `%` is ÷100, and `7 % 3` is an error saying to use `mod`; `^` is always a power.
 **Tests:** a table with the cases above and every pair of operators; a generator of random trees where `parse(print(t)) == t`; errors with spans for `1+`, `(1`, `1)`, `f(`, `,`.
 **Done when:** those pass, a 100,000-string fuzz throws only `CalcError`, and on the big stack 199,999 terms of `1+1+…` parse, and 1,000,000 give a `CalcError` with a span.
 **From B2 (2026-11-25):** `mod`, `rem`, `xor` and `to` arrive as their own token kinds, not identifiers, so an identifier always starts an operand and a keyword never does. `°` and `#` arrive as `Degree` and `Hash`: refuse them here, by name. π, τ and φ are one-character identifiers that never join a name, so `2πr` is three tokens. `<` and `>` alone are lexer errors until H1. `ErrorKind` already lists B4's eight kinds. The fuzz in `LexerFuzzTests` has a weighted alphabet worth reusing.
