@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Calc.Cli is referenced so LayeringTests can read it. The worker is copied beside the tests for B10's real-exe tests. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Calc.Client\Calc.Client.csproj" />
+    <ProjectReference Include="..\..\src\Calc.Cli\Calc.Cli.csproj" />
+  </ItemGroup>
+  <Import Project="..\..\src\WorkerBeside.targets" />
+</Project>

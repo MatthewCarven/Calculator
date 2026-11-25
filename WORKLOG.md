@@ -76,3 +76,29 @@ For Calc: the print edge stays. Values whose top bit is at 2^63 − 2 or above p
 output, so B6's ErrorMap maps a `ToString` overflow to `Overflow`, as its brief already says.
 
 **Next:** B1, the solution skeleton, the first session in Calc itself.
+
+## 2026-11-25: B1 done
+
+The solution skeleton, from `docs/research/ui/skeleton/` with the brief's changes: `Calc.Syntax`, `Calc.Protocol`, `Calc.Engine`,
+`Calc.Worker`, `Calc.Client` and `Calc.Cli`, and three test projects, 8 tests. `calc-worker --eval x` prints 1/3 at 256 bits to
+76 digits, from Natural. Builds with 0 warnings. CLAUDE.md now has the commands, the layout and the gotchas.
+
+**Choices made here:**
+- The copy step is one shared file, `src/WorkerBeside.targets`, rather than three copies. It copies from the worker's reported
+  output path, not a hard-coded `bin\Debug\net10.0`.
+- Engine references `$(NaturalProject)`, derived from `NaturalRoot`, and fails early, by name, if Natural isn't there.
+- Checked arithmetic is on in every project, as a net under rule 5. Records and JSON source generation are fine under it.
+- Nullable warnings are errors. The test packages are the same versions as Natural's.
+- `Calc.Client.Tests` references `Calc.Cli` so `LayeringTests` can read it.
+
+**Broken on purpose, each red:** a Natural reference and use in `Calc.Client` turned `LayeringTests` red for that assembly
+alone (and without the reference, it didn't compile at all); `G77` for `G76` turned both digit tests red; removing the copy
+step from `Calc.Client.Tests` turned `WorkerBesideTests` red after a clean. A `NaturalRoot` with no Natural gives the named
+error, with or without its trailing slash.
+
+**Found on the way:** the SDK copies `calc-worker.exe` and its config files beside any project that references the worker,
+even build-only and transitively, but not its DLLs. So the first version of the copy-step test, which checked the exe was
+there, passed with the copy step removed. It runs the worker now. C1's brief says so, and also warns that a net10.0 test
+project probably can't reference the net10.0-windows App.
+
+**Next:** B2, the lexer.

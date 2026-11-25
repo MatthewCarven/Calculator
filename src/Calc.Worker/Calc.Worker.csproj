@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The engine behind a stdio loop, in its own process so Stop can kill it (B9). Also an eval flag, for agents. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>calc-worker</AssemblyName>
+    <RootNamespace>Calc.Worker</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Calc.Engine\Calc.Engine.csproj" />
+    <ProjectReference Include="..\Calc.Protocol\Calc.Protocol.csproj" />
+  </ItemGroup>
+</Project>

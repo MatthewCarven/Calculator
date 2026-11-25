@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The evaluator. With Calc.Worker, the only place Natural is allowed (TODO rule 1). -->
+  <ItemGroup>
+    <ProjectReference Include="..\Calc.Syntax\Calc.Syntax.csproj" />
+    <ProjectReference Include="..\Calc.Protocol\Calc.Protocol.csproj" />
+    <!-- Natural.csproj only, never Natural.slnx, which holds WinForms. -->
+    <ProjectReference Include="$(NaturalProject)" />
+  </ItemGroup>
+
+  <Target Name="CheckNaturalIsThere" BeforeTargets="Restore;_GenerateRestoreProjectSpec;ResolveProjectReferences"
+          Condition="!Exists('$(NaturalProject)')">
+    <Error Text="Natural isn't at $(NaturalProject). Clone https://github.com/MatthewCarven/Natural beside Calc, or pass -p:NaturalRoot=&lt;its folder&gt;." />
+  </Target>
+</Project>

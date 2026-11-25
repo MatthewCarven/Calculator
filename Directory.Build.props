@@ -1,0 +1,17 @@
+<Project>
+  <!-- Calc builds against a Natural checkout beside it, at ..\Natural. Pass -p:NaturalRoot=<folder> to use another. -->
+  <PropertyGroup>
+    <CalcRoot>$(MSBuildThisFileDirectory)</CalcRoot>
+    <NaturalRoot Condition="'$(NaturalRoot)' == ''">$(MSBuildThisFileDirectory)..\Natural\</NaturalRoot>
+    <!-- A separate property, because a value passed with -p can't be changed here, and it may lack its slash. -->
+    <NaturalProject>$([MSBuild]::EnsureTrailingSlash('$(NaturalRoot)'))src\Natural\Natural.csproj</NaturalProject>
+    <!-- net10.0, though a .NET 11 SDK may be the one building it. Calc.App overrides this with net10.0-windows. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <WarningsAsErrors>$(WarningsAsErrors);nullable</WarningsAsErrors>
+    <!-- A wrapped long is still a valid exponent, so Natural can't catch it (TODO rule 5). Here every
+         integer overflow throws instead. Write `unchecked` where wrapping is meant, as in a hash. -->
+    <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
+  </PropertyGroup>
+</Project>

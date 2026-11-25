@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- What the Client and the worker agree on: wire records, EvalContext, the digits formula. References nothing. -->
+</Project>

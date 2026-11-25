@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Calc.Engine\Calc.Engine.csproj" />
+  </ItemGroup>
+</Project>

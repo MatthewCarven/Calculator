@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A console calculator on Calc.Client (B11). The worker is copied beside it at build time, never referenced. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Calc.Client\Calc.Client.csproj" />
+  </ItemGroup>
+  <Import Project="..\WorkerBeside.targets" />
+</Project>

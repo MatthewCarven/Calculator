@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Lexer, parser, tree and printer. References nothing, so the Client can tokenise without Natural. -->
+</Project>

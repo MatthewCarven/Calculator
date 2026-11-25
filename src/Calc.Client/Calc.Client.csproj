@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Session, history, the clear rule, worker control and window state, all testable without WPF. No Natural. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Calc.Syntax\Calc.Syntax.csproj" />
+    <ProjectReference Include="..\Calc.Protocol\Calc.Protocol.csproj" />
+  </ItemGroup>
+</Project>

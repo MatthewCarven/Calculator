@@ -1,0 +1,23 @@
+<Project>
+  <!-- Builds calc-worker first and copies it beside this project's output, without referencing it, so this
+       project still can't see Natural (TODO rule 1). Imported by Calc.Cli, the tests that run the worker, and
+       later Calc.App. -->
+  <ItemGroup>
+    <ProjectReference Include="$(CalcRoot)src\Calc.Worker\Calc.Worker.csproj"
+                      ReferenceOutputAssembly="false"
+                      OutputItemType="CalcWorkerOutput" />
+  </ItemGroup>
+
+  <Target Name="CopyCalcWorker" AfterTargets="Build">
+    <Error Condition="'@(CalcWorkerOutput)' == ''" Text="calc-worker's build reported no output to copy." />
+    <PropertyGroup>
+      <_CalcWorkerDir>@(CalcWorkerOutput->'%(RootDir)%(Directory)')</_CalcWorkerDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <_CalcWorkerFiles Include="$(_CalcWorkerDir)*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_CalcWorkerFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true">
+      <Output TaskParameter="DestinationFiles" ItemName="FileWrites" />
+    </Copy>
+  </Target>
+</Project>

@@ -75,7 +75,7 @@ https://github.com/MatthewCarven/Calculator, which is public, so nothing private
 - [x] A2 Three bugs a calculator can reach (2026-11-25: 693 tests, 14 of 15 mutations red, 1 equivalent; Natural at eecf078)
 
 **B. Engine**
-- [ ] B1 Solution skeleton
+- [x] B1 Solution skeleton (2026-11-25: 6 projects and 3 test projects, 8 tests; the copy step is shared as `src/WorkerBeside.targets`)
 - [ ] B2 Lexer
 - [ ] B3 Parser
 - [ ] B4 Evaluator and float core
@@ -242,6 +242,7 @@ reference and copy step. `calc-worker --eval "x"` prints `ApFloat.Divide(1, 3, 2
 **Tests:** one real test per project. `LayeringTests`, in `Calc.Client.Tests`, reads each assembly's references with `System.Reflection.Metadata`, and fails
 if `Natural` appears in Syntax, Protocol, Client or Cli.
 **Done when:** `dotnet build Calc.slnx` and `dotnet test Calc.slnx` are green from a fresh clone beside Natural, and `calc-worker --eval x` prints `0.33333…` to 76 digits.
+**As built (2026-11-25):** Engine references `$(NaturalProject)`, derived from `NaturalRoot`, because a `-p:` value can't be given its missing slash. The copy step is one shared file, `src/WorkerBeside.targets`. `Calc.Client.Tests` references `Calc.Cli` to read it. Checked arithmetic is on in every project. CLAUDE.md has the layout.
 
 ### B2. Lexer
 **Goal:** text to tokens, with spans, and nothing but a `CalcError` for bad input.
@@ -413,9 +414,9 @@ Every session here runs `--smoke`, takes dark and light screenshots, and ends wi
 ### C1. WPF shell and themes
 **Goal:** the real window, empty but for its layout, in both themes, with the agent's eyes working.
 **Needs:** B11.
-**Files:** `src/Calc.App` (csproj as the skeleton's), `App.xaml`, `MainWindow.xaml`, `Themes/`, `SmokeTest.cs`.
+**Files:** `src/Calc.App` (csproj as the skeleton's, but importing `src/WorkerBeside.targets` as Calc.Cli does), `App.xaml`, `MainWindow.xaml`, `Themes/`, `SmokeTest.cs`.
 **How:** the regions in PLAN.md's window sketch, with placeholders. Merge Fluent's `Fluent.Dark.xaml` or `Fluent.Light.xaml` by hand: `ThemeMode` is build error WPF0001. `--smoke` spawns the worker, evaluates `1+1`, and returns an exit code; `../Evolutionary.Net/Studio/App.xaml.cs` is the model for that. `--screenshot <dir>` renders PNGs with no window, by Measure, Arrange and `RenderTargetBitmap`, as in `docs/research/ui/wpf-spike.cs` lines 403 to 412. Studio's own version shows a window, so don't copy that part. Add a PerMonitorV2 manifest.
-**Traps:** extend `LayeringTests` to `Calc.App.dll`. The worker must land beside the app: the skeleton's copy step.
+**Traps:** extend `LayeringTests` to `Calc.App.dll`. `Calc.Client.Tests` is net10.0, and probably can't reference a net10.0-windows project (NU1201), so it may have to find the DLL another way; break it once and watch it go red. The worker must land beside the app: `WorkerBeside.targets` does that. An exe beside the app proves nothing, because the SDK copies one by itself; `--smoke` proves it.
 **Done when:** `--smoke` exits 0 and both theme screenshots look right. **Try this:** open it; drag it between scales if you have a second screen.
 
 ### C2. Entry and result

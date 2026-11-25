@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Runs the real calc-worker, copied beside the tests. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Calc.Protocol\Calc.Protocol.csproj" />
+  </ItemGroup>
+  <Import Project="..\..\src\WorkerBeside.targets" />
+</Project>
