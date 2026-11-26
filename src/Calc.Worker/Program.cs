@@ -1,8 +1,10 @@
 // calc-worker. B9 puts the stdio loop here. For agents and people, --eval evaluates one expression:
 //   calc-worker --eval "0.1+0.2" [--bits 53 | --format binary64] [--mode nearest|zero|up|down]
 //               [--notation auto|scientific|engineering|fixed|aligned] [--group <separator>] [--raw] [--exact on|off]
+//               [--caption]
 // The result goes to stdout as the window will show it, the digits its precision guarantees (rule 9), or with --raw as
-// every digit that reads back. Exact is on by default, as in the window (Matthew, 2026-11-07). Any flags go to stderr.
+// every digit that reads back; --caption adds the line under it, such as "exact = 3/10" or "float, 76 digits". Exact is
+// on by default, as in the window (Matthew, 2026-11-07). Any flags go to stderr.
 // An error goes to stderr, with exit code 1; bad arguments, 2.
 
 using Calc.Engine.Eval;
@@ -18,12 +20,18 @@ Target target = Target.Bits(256);
 RoundingMode mode = RoundingMode.ToNearestEven;
 var options = TextOptions.Default;
 bool raw = false;
+bool caption = false;
 bool exact = true;
 for (int i = 2; i < args.Length; i++)
 {
     if (args[i] == "--raw")
     {
         raw = true;
+        continue;
+    }
+    if (args[i] == "--caption")
+    {
+        caption = true;
         continue;
     }
     if (i + 1 >= args.Length) return Usage();
@@ -62,7 +70,8 @@ var compute = new Thread(() =>
     try
     {
         result = Evaluator.Run(source, target, mode, exact: exact);
-        text = raw ? result.Value.ToString() : ResultText.Of(result.Value, target, options).Main;
+        ResultText? shown = raw && !caption ? null : ResultText.Of(result.Value, target, options);
+        text = (raw ? result.Value.ToString()! : shown!.Main) + (caption ? Environment.NewLine + shown!.Caption : "");
     }
     catch (Exception e) { error = ErrorMap.From(e, null); }
 }, 256 << 20);
@@ -99,6 +108,6 @@ static RoundingMode? Mode(string name) => name switch
 
 static int Usage()
 {
-    Console.Error.WriteLine("usage: calc-worker --eval <expression> [--bits <1 to 2^30> | --format binary16|32|64|128|256] [--mode nearest|zero|up|down] [--notation auto|scientific|engineering|fixed|aligned] [--group <separator>] [--raw] [--exact on|off]");
+    Console.Error.WriteLine("usage: calc-worker --eval <expression> [--bits <1 to 2^30> | --format binary16|32|64|128|256] [--mode nearest|zero|up|down] [--notation auto|scientific|engineering|fixed|aligned] [--group <separator>] [--raw] [--exact on|off] [--caption]");
     return 2;
 }

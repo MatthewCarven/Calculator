@@ -19,12 +19,24 @@ public sealed record ExactBudgets(long IntegerBits = 1L << 24, long RatioBits = 
 }
 
 /// <summary>
-/// Integers and fractions stay exact until something irrational or too large forces a float. + − × ÷, negate, % and
-/// integer powers are exact here; everything else, and anything past a budget, goes to <see cref="FloatArithmetic"/>,
-/// which converts exact operands at the target. Past a budget the float is marked <see cref="FloatValue.ExactTooLarge"/>:
-/// nothing is refused. Flags come only from those conversions and float operations, so exact work raises none.
+/// Integers and fractions stay exact until something irrational or too large forces a float: + − × ÷, negate, %, mod,
+/// rem, integer powers, the bit operators, comparisons, and abs, sign, floor, ceil, trunc, round, max, min, fma and the
+/// sqrt of a perfect square. Past a budget the float is marked <see cref="FloatValue.ExactTooLarge"/>: nothing is
+/// refused. Flags come only from float operations, so exact work raises none.
 /// </summary>
-/// <remarks>Format targets never come here: they're IEEE, so they always use floats.</remarks>
+/// <remarks>
+/// <para>Where a float comes in, or a budget runs out, the answer is still right for the exact values, rounded once, never
+/// for the exact values rounded first (B8). Rounding first differs in about 30% of cases for 1/3 × sqrt(2) and its kin.</para>
+/// <list type="bullet">
+/// <item>× ÷ with a float: the exact side's parts times the float, exactly, then one division.</item>
+/// <item>+ − with a float, sqrt, ^ on an exact base, and functions: <see cref="RoundedCall"/>, which brackets the exact
+/// value.</item>
+/// <item>mod, rem and fma with a float: the float taken as the fraction it is, within the budgets, then exact work.</item>
+/// <item>Past a budget: the fraction unreduced, built and divided once, within the work budget; past that, RoundedCall.</item>
+/// <item>max, min and comparisons: exact, a float against an exact value too.</item>
+/// </list>
+/// <para>Format targets never come here: they're IEEE, so they always use floats.</para>
+/// </remarks>
 public sealed class ExactArithmetic : IArithmetic
 {
     private readonly FloatArithmetic _floats;
@@ -132,49 +144,75 @@ public sealed class ExactArithmetic : IArithmetic
 
     public Value Import(Value value, TextSpan at) => value is FloatValue ? _floats.Import(value, at) : value;
 
-    public Value Add(Value a, Value b, TextSpan at) => Sum(a, b, negateB: false, at);
+    // + and -
 
-    public Value Subtract(Value a, Value b, TextSpan at) => Sum(a, b, negateB: true, at);
+    public Value Add(Value a, Value b, TextSpan at) => Sum(a, b, negate: false, at);
 
-    private Value Sum(Value a, Value b, bool negateB, TextSpan at)
+    public Value Subtract(Value a, Value b, TextSpan at) => Sum(a, b, negate: true, at);
+
+    private Value Sum(Value a, Value b, bool negate, TextSpan at)
     {
-        if (a is IntValue x && b is IntValue y)
-        {
-            if (Math.Max(x.Number.BitLength, y.Number.BitLength) + 1 <= _budgets.IntegerBits)
-                return new IntValue(negateB ? x.Number - y.Number : x.Number + y.Number);
-        }
-        else if (Fraction(a) is (ApInt n1, ApInt d1) && Fraction(b) is (ApInt n2, ApInt d2))
-        {
-            long numeratorBits = Math.Max(n1.BitLength + d2.BitLength, n2.BitLength + d1.BitLength) + 1;
-            if (FitsRatio(numeratorBits, d1.BitLength + d2.BitLength))
-            {
-                ApInt cross = n2 * d1;
-                return RatioValue.Of(n1 * d2 + (negateB ? -cross : cross), d1 * d2);
-            }
-        }
-        else
-        {
-            return negateB ? _floats.Subtract(a, b, at) : _floats.Add(a, b, at);
-        }
-        return TooLarge(negateB ? _floats.Subtract(a, b, at) : _floats.Add(a, b, at));
+        Value Floats(IReadOnlyList<Value> v) => negate ? _floats.Subtract(v[0], v[1], at) : _floats.Add(v[0], v[1], at);
+        // With a float, RoundedCall always settles: an integer or a fraction over a power of two is exact at its width,
+        // and any other fraction keeps the sum off every point where the rounding changes.
+        if (Fraction(a) is not (ApInt n1, ApInt d1) || Fraction(b) is not (ApInt n2, ApInt d2))
+            return RoundedCall.Of(_floats, [a, b], Floats);
+        if (ExactSum(n1, d1, n2, d2, negate) is Value exact) return exact;
+        // Past a budget: the fraction unreduced, built and divided once, if the work allows.
+        Value Unreduced() => _floats.Quotient(SumNumerator(n1, d1, n2, d2, negate), d1 * d2, at);
+        if (WithinWork(SumBits(n1, d1, n2, d2), d1.BitLength + d2.BitLength)) return TooLarge(Unreduced());
+        // Past the work budget too: RoundedCall, and the fraction built anyway only if it can't settle, which means the
+        // answer is exactly where the rounding changes. The same goes for × ÷ and fma below.
+        return TooLarge(RoundedCall.Of(_floats, [a, b], Floats, unsettled: Unreduced));
     }
+
+    /// <summary>n1/d1 ± n2/d2 exactly, or null past a budget.</summary>
+    private Value? ExactSum(ApInt n1, ApInt d1, ApInt n2, ApInt d2, bool negate)
+    {
+        if (d1 == ApInt.One && d2 == ApInt.One)
+            return Math.Max(n1.BitLength, n2.BitLength) + 1 <= _budgets.IntegerBits ? new IntValue(negate ? n1 - n2 : n1 + n2) : null;
+        if (!FitsRatio(SumBits(n1, d1, n2, d2), d1.BitLength + d2.BitLength)) return null;
+        return RatioValue.Of(SumNumerator(n1, d1, n2, d2, negate), d1 * d2);
+    }
+
+    private static long SumBits(ApInt n1, ApInt d1, ApInt n2, ApInt d2) =>
+        Math.Max(n1.BitLength + d2.BitLength, n2.BitLength + d1.BitLength) + 1;
+
+    private static ApInt SumNumerator(ApInt n1, ApInt d1, ApInt n2, ApInt d2, bool negate)
+    {
+        ApInt left = d2 == ApInt.One ? n1 : n1 * d2, right = d1 == ApInt.One ? n2 : n2 * d1;
+        return negate ? left - right : left + right;
+    }
+
+    // × and ÷
 
     public Value Multiply(Value a, Value b, TextSpan at)
     {
-        if (a is IntValue x && b is IntValue y)
+        if (Fraction(a) is (ApInt n1, ApInt d1) && Fraction(b) is (ApInt n2, ApInt d2))
         {
-            long bitsX = x.Number.BitLength, bitsY = y.Number.BitLength;
-            if (bitsX + bitsY <= _budgets.IntegerBits && WithinWork(bitsX, bitsY)) return new IntValue(x.Number * y.Number);
+            if (ExactProduct(n1, d1, n2, d2) is Value exact) return exact;
+            Value Unreduced() => _floats.Quotient(n1 * n2, d1 * d2, at);
+            if (WithinWork(n1.BitLength, n2.BitLength) && WithinWork(n1.BitLength + n2.BitLength, d1.BitLength + d2.BitLength))
+                return TooLarge(Unreduced());
+            return TooLarge(RoundedCall.Of(_floats, [a, b], v => _floats.Multiply(v[0], v[1], at), absolute: false, unsettled: Unreduced));
         }
-        else if (Fraction(a) is (ApInt n1, ApInt d1) && Fraction(b) is (ApInt n2, ApInt d2))
+        if (a is FloatValue && b is FloatValue) return _floats.Multiply(a, b, at);
+        // One float: the exact side's numerator times it, exactly, then one division by its denominator. Right even
+        // where the answer is exact, as 1/3 × 3.0 is, which RoundedCall can't settle on in a directed mode.
+        var (n, d) = Fraction(a is FloatValue ? b : a)!.Value;
+        ApFloat y = ((FloatValue)(a is FloatValue ? a : b)).Number;
+        return _floats.Quotient(Times(n, y), d, at);
+    }
+
+    /// <summary>(n1/d1)·(n2/d2) exactly, or null past a budget.</summary>
+    private Value? ExactProduct(ApInt n1, ApInt d1, ApInt n2, ApInt d2)
+    {
+        if (d1 == ApInt.One && d2 == ApInt.One)
         {
-            if (FitsRatio(n1.BitLength + n2.BitLength, d1.BitLength + d2.BitLength)) return RatioValue.Of(n1 * n2, d1 * d2);
+            long bitsX = n1.BitLength, bitsY = n2.BitLength;
+            return bitsX + bitsY <= _budgets.IntegerBits && WithinWork(bitsX, bitsY) ? new IntValue(n1 * n2) : null;
         }
-        else
-        {
-            return _floats.Multiply(a, b, at);
-        }
-        return TooLarge(_floats.Multiply(a, b, at));
+        return FitsRatio(n1.BitLength + n2.BitLength, d1.BitLength + d2.BitLength) ? RatioValue.Of(n1 * n2, d1 * d2) : null;
     }
 
     /// <summary>
@@ -184,30 +222,51 @@ public sealed class ExactArithmetic : IArithmetic
     public Value Divide(Value a, Value b, TextSpan at)
     {
         if (IsExactZero(b) && a is IntValue or RatioValue) throw new CalcError(ErrorKind.DivideByZero, "Division by zero.", at);
-        if (a is IntValue x && b is IntValue y)
+        if (Fraction(a) is (ApInt n1, ApInt d1) && Fraction(b) is (ApInt n2, ApInt d2))
         {
-            if (WithinWork(x.Number.BitLength, y.Number.BitLength))
-            {
-                var (quotient, remainder) = ApInt.DivRem(x.Number, y.Number);
-                if (remainder.IsZero) return new IntValue(quotient);
-                if (FitsRatio(x.Number.BitLength, y.Number.BitLength)) return RatioValue.Of(x.Number, y.Number);
-            }
+            if (ExactQuotient(n1, d1, n2, d2) is Value exact) return exact;
+            Value Unreduced() => _floats.Quotient(n1 * d2, d1 * n2, at);
+            if (WithinWork(n1.BitLength, d2.BitLength) && WithinWork(d1.BitLength, n2.BitLength)
+                && WithinWork(n1.BitLength + d2.BitLength, d1.BitLength + n2.BitLength))
+                return TooLarge(Unreduced());
+            return TooLarge(RoundedCall.Of(_floats, [a, b], v => _floats.Divide(v[0], v[1], at), absolute: false, unsettled: Unreduced));
         }
-        else if (Fraction(a) is (ApInt n1, ApInt d1) && Fraction(b) is (ApInt n2, ApInt d2))
+        if (a is FloatValue && b is FloatValue) return _floats.Divide(a, b, at);
+        if (b is FloatValue { Number: var y })
         {
-            if (FitsRatio(n1.BitLength + d2.BitLength, d1.BitLength + n2.BitLength)) return RatioValue.Of(n1 * d2, d1 * n2);
+            // (n/d) ÷ y = n / (d·y). A zero y is DivideByZero, from Quotient.
+            var (n, d) = Fraction(a)!.Value;
+            return _floats.Quotient(n, Times(d, y), at);
         }
-        else
+        // y ÷ (n/d) = (y·d) / n.
+        var (bn, bd) = Fraction(b)!.Value;
+        return _floats.Quotient(Times(bd, ((FloatValue)a).Number), bn, at);
+    }
+
+    /// <summary>(n1/d1)/(n2/d2) exactly, or null past a budget. n2 isn't zero.</summary>
+    private Value? ExactQuotient(ApInt n1, ApInt d1, ApInt n2, ApInt d2)
+    {
+        if (d1 == ApInt.One && d2 == ApInt.One)
         {
-            return _floats.Divide(a, b, at);
+            if (!WithinWork(n1.BitLength, n2.BitLength)) return null;
+            var (quotient, remainder) = ApInt.DivRem(n1, n2);
+            if (remainder.IsZero) return new IntValue(quotient);
+            return FitsRatio(n1.BitLength, n2.BitLength) ? RatioValue.Of(n1, n2) : null;
         }
-        return TooLarge(_floats.Divide(a, b, at));
+        return FitsRatio(n1.BitLength + d2.BitLength, d1.BitLength + n2.BitLength) ? RatioValue.Of(n1 * d2, d1 * n2) : null;
+    }
+
+    /// <summary>n·y exactly: ApFloat's product at the width both significands need, so nothing rounds.</summary>
+    private static ApFloat Times(ApInt n, ApFloat y)
+    {
+        long width = n.IsZero || !y.IsFinite || y.IsZero ? 1 : n.BitLength + y.Significand.BitLength;
+        return ApFloat.Multiply(n, y, (int)Math.Clamp(width, 1, ApFloat.MaxPrecision));
     }
 
     public Value Negate(Value a, TextSpan at) => a switch
     {
         IntValue x => new IntValue(-x.Number),
-        RatioValue r => RatioValue.Of(-r.Numerator, r.Denominator),
+        RatioValue r => r.Negated(),
         _ => _floats.Negate(a, at),
     };
 
@@ -215,14 +274,20 @@ public sealed class ExactArithmetic : IArithmetic
     public Value Percent(Value a, TextSpan at) =>
         a is IntValue or RatioValue ? Divide(a, new IntValue(100), at) : _floats.Percent(a, at);
 
+    // ^
+
     /// <summary>
     /// An exact base to an integer power stays exact within budget; a negative power gives a fraction. Base 0, 1 and -1
     /// are settled for any integer first, so 1^(10^30) is exact. A power of two is exempt from the work budget, since
-    /// it's a shift: 2^1000000 takes under a millisecond. Anything else goes to the float path, with y passed exactly.
+    /// it's a shift: 2^1000000 takes under a millisecond. ^(1/2) is sqrt. Anything else with an exact base is the float
+    /// power of that exact base, with y held as it is: 1.1^5000 at 53 bits is 9.19233389907065E+206, where rounding the
+    /// base first gets 3 of 15 digits wrong.
     /// </summary>
     public Value Power(Value a, Value b, TextSpan at)
     {
-        if (b is not IntValue { Number: var y } || a is not (IntValue or RatioValue)) return _floats.Power(a, b, at);
+        if (a is FloatValue) return _floats.Power(a, b, at);
+        if (b is RatioValue half && half.Numerator == ApInt.One && half.Denominator == 2) return Sqrt(a, at);
+        if (b is not IntValue { Number: var y }) return FloatPower(a, b, at);
 
         var (n, d) = Fraction(a)!.Value;
         bool odd = !(y & ApInt.One).IsZero;
@@ -241,7 +306,19 @@ public sealed class ExactArithmetic : IArithmetic
             if (Raised(n, d, k) is var (pn, pd))
                 return y.IsNegative ? RatioValue.Of(pn.IsNegative ? -pd : pd, ApInt.Abs(pn)) : RatioValue.Of(pn, pd);
         }
-        return TooLarge(_floats.Power(a, b, at));
+        return TooLarge(FloatPower(a, b, at));
+    }
+
+    /// <summary>x^y in floats for an exact x, rounded once for the exact x, with y passed as it is.</summary>
+    private Value FloatPower(Value a, Value b, TextSpan at)
+    {
+        long exponentBits = b switch
+        {
+            IntValue i => Math.Min(i.Number.BitLength, 64),
+            FloatValue { Number: { IsFinite: true, IsZero: false } y } => Math.Clamp(y.Exponent + y.Significand.BitLength, 0, 64),
+            _ => 0,
+        };
+        return RoundedCall.Of(_floats, [a], v => _floats.Power(v[0], b, at), absolute: false, extraBits: exponentBits);
     }
 
     /// <summary>(n/d)^k exactly if the budgets allow, both parts positive powers; checked before computing.</summary>
@@ -285,20 +362,238 @@ public sealed class ExactArithmetic : IArithmetic
         return (long)Math.Ceiling(k * log2 * (1 + 1e-12)) + 1;
     }
 
-    // Not exact here: B8 makes these honest. They go to floats, which convert exact operands at the target.
-    public Value Mod(Value a, Value b, TextSpan at) => _floats.Mod(a, b, at);
-    public Value Rem(Value a, Value b, TextSpan at) => _floats.Rem(a, b, at);
-    public Value Factorial(Value a, TextSpan at) => _floats.Factorial(a, at);
-    public Value And(Value a, Value b, TextSpan at) => _floats.And(a, b, at);
-    public Value Or(Value a, Value b, TextSpan at) => _floats.Or(a, b, at);
-    public Value Xor(Value a, Value b, TextSpan at) => _floats.Xor(a, b, at);
-    public Value ShiftLeft(Value a, Value b, TextSpan at) => _floats.ShiftLeft(a, b, at);
-    public Value ShiftRight(Value a, Value b, TextSpan at) => _floats.ShiftRight(a, b, at);
-    public Value Not(Value a, TextSpan at) => _floats.Not(a, at);
-    public int? Compare(Value a, Value b) => _floats.Compare(a, b);
-    public Value Call(string name, IReadOnlyList<Value> arguments, TextSpan at) => _floats.Call(name, arguments, at);
+    // sqrt
 
-    private static (ApInt Numerator, ApInt Denominator)? Fraction(Value v) => v switch
+    /// <summary>
+    /// A perfect square, or a fraction of two, stays exact; anything else is the float root of the exact value. A
+    /// negative is Domain, as in floats.
+    /// </summary>
+    private Value Sqrt(Value a, TextSpan at)
+    {
+        if (Fraction(a) is not (ApInt n, ApInt d)) return _floats.Call("sqrt", [a], at);
+        if (n.IsNegative) throw new CalcError(ErrorKind.Domain, "That has no answer.", at);
+        var (top, topKnown) = SquareRoot(n);
+        var (bottom, bottomKnown) = SquareRoot(d);
+        if (top is ApInt rn && bottom is ApInt rd) return RatioValue.Of(rn, rd);
+        Value root = RoundedCall.Of(_floats, [a], v => _floats.Call("sqrt", v, at), absolute: false);
+        // A part known not to be a square makes the root irrational: a plain float. Not knowing, because telling would
+        // cost too much, is the budget's doing.
+        bool irrational = (topKnown && top is null) || (bottomKnown && bottom is null);
+        return irrational ? root : TooLarge(root);
+    }
+
+    /// <summary>
+    /// x's integer square root if x is a perfect square, with Known true; null with Known true if it isn't; null with
+    /// Known false if telling would cost too much. The twos are settled from their count, so a power of two costs
+    /// nothing; SqrtRem, which is quadratic, runs on the odd part only within the work budget: sqrt(2^1000000) took
+    /// 11.8 s by SqrtRem alone.
+    /// </summary>
+    private (ApInt? Root, bool Known) SquareRoot(ApInt x)
+    {
+        if (x.IsZero) return (x, true);
+        long twos = long.CreateChecked(ApInt.TrailingZeroCount(x));
+        if ((twos & 1) != 0) return (null, true);
+        ApInt odd = x >> (int)twos;
+        if (!WithinWork(odd.BitLength, odd.BitLength)) return (null, false);
+        var (root, remainder) = ApInt.SqrtRem(odd);
+        return (remainder.IsZero ? root << (int)(twos / 2) : null, true);
+    }
+
+    // mod and rem
+
+    /// <summary>Floored: the result takes the divisor's sign, so -7 mod 3 is 2, and 7/2 mod 1/3 is 1/6.</summary>
+    public Value Mod(Value a, Value b, TextSpan at) => Remainder(a, b, floored: true, at);
+
+    /// <summary>Truncated: the result takes the dividend's sign, so -7 rem 3 is -1.</summary>
+    public Value Rem(Value a, Value b, TextSpan at) => Remainder(a, b, floored: false, at);
+
+    private Value Remainder(Value a, Value b, bool floored, TextSpan at)
+    {
+        Value Floats(IReadOnlyList<Value> v) => floored ? _floats.Mod(v[0], v[1], at) : _floats.Rem(v[0], v[1], at);
+        if (a is FloatValue && b is FloatValue) return Floats([a, b]);
+        bool mixed = a is FloatValue || b is FloatValue;
+        // A float meeting an exact value is taken as the fraction it is, if the budgets allow, so the answer is exact and
+        // then rounded once. RoundedCall would do for most, but a remainder jumps where the quotient is whole, and lands
+        // exactly on a value as 2.5 mod 2/3 does (1/2), which no bracket settles on in a directed mode.
+        if (Fraction(AsExact(a)) is not (ApInt n1, ApInt d1) || Fraction(AsExact(b)) is not (ApInt n2, ApInt d2))
+            return RoundedCall.Of(_floats, [a, b], Floats);
+        if (n2.IsZero) throw new CalcError(ErrorKind.DivideByZero, "Division by zero.", at);
+
+        // a/b = (n1·d2)/(n2·d1), so the remainder is ((n1·d2) rem (n2·d1)) / (d1·d2).
+        long dividendBits = n1.BitLength + d2.BitLength, divisorBits = n2.BitLength + d1.BitLength;
+        if (WithinWork(n1.BitLength, d2.BitLength) && WithinWork(n2.BitLength, d1.BitLength) && WithinWork(dividendBits, divisorBits))
+            return Exactly();
+        // Past the work budget, a float. Where the quotient is whole, the remainder jumps, and its answer, 0, is exactly
+        // where no bracket settles: 2·10^20 mod 2/3 is one. Only then is the exact remainder worked out, whatever it costs.
+        Value rounded = RoundedCall.Of(_floats, [a, b], Floats, unsettled: Exactly);
+        return mixed ? rounded : TooLarge(rounded);
+
+        Value Exactly()
+        {
+            ApInt dividend = d2 == ApInt.One ? n1 : n1 * d2, divisor = d1 == ApInt.One ? n2 : n2 * d1;
+            ApInt r = ApInt.DivRem(dividend, divisor).Remainder;
+            if (floored && !r.IsZero && r.IsNegative != divisor.IsNegative) r += divisor;
+
+            ApInt denominator = d1 * d2;
+            Value result;
+            if (denominator == ApInt.One) result = new IntValue(r); // |r| < |divisor|: within size
+            else if (FitsRatio(divisorBits, denominator.BitLength)) result = RatioValue.Of(r, denominator);
+            else return mixed ? _floats.Quotient(r, denominator, at) : TooLarge(_floats.Quotient(r, denominator, at));
+            return mixed ? _floats.Rounded(result, at) : result;
+        }
+    }
+
+    // Bit operators: on integers, as two's complement of unlimited width, exactly. A fraction is Domain. With a float,
+    // the integer goes to the float path as itself, at its own width, so no bits are lost before the operator.
+
+    public Value And(Value a, Value b, TextSpan at) =>
+        a is IntValue x && b is IntValue y ? new IntValue(x.Number & y.Number) : _floats.And(Whole(a, at), Whole(b, at), at);
+
+    public Value Or(Value a, Value b, TextSpan at) =>
+        a is IntValue x && b is IntValue y ? new IntValue(x.Number | y.Number) : _floats.Or(Whole(a, at), Whole(b, at), at);
+
+    public Value Xor(Value a, Value b, TextSpan at) =>
+        a is IntValue x && b is IntValue y ? new IntValue(x.Number ^ y.Number) : _floats.Xor(Whole(a, at), Whole(b, at), at);
+
+    public Value Not(Value a, TextSpan at) => a is IntValue x ? new IntValue(~x.Number) : _floats.Not(Whole(a, at), at);
+
+    /// <summary>floor(x·2^n), so a negative n shifts right.</summary>
+    public Value ShiftLeft(Value a, Value b, TextSpan at) => Shift(a, b, left: true, at);
+
+    /// <summary>floor(x·2^-n): an arithmetic shift, so -7 &gt;&gt; 1 is -4.</summary>
+    public Value ShiftRight(Value a, Value b, TextSpan at) => Shift(a, b, left: false, at);
+
+    private Value Shift(Value a, Value b, bool left, TextSpan at)
+    {
+        if (b is RatioValue) throw new CalcError(ErrorKind.Domain, "A shift needs a whole number of places.", at);
+        if (a is not IntValue { Number: var x } || b is not IntValue { Number: var count })
+            return Floats(Whole(a, at), b is IntValue c ? new FloatValue(c.Number) : b);
+        ApInt places = left ? count : -count;
+        if (x.IsZero) return a;
+        if (places.IsNegative)
+        {
+            // Right: every bit can go, leaving 0, or -1 for a negative.
+            if (-places >= x.BitLength) return new IntValue(x.IsNegative ? ApInt.MinusOne : ApInt.Zero);
+            return new IntValue(x >> int.CreateChecked(-places));
+        }
+        // Left: within the size budget, else a float, which a shift makes exactly before its one rounding.
+        if (places.BitLength < 63 && x.BitLength + long.CreateChecked(places) <= _budgets.IntegerBits)
+            return new IntValue(x << int.CreateChecked(places));
+        return TooLarge(Floats(Whole(a, at), new FloatValue(count)));
+
+        Value Floats(Value value, Value by) => left ? _floats.ShiftLeft(value, by, at) : _floats.ShiftRight(value, by, at);
+    }
+
+    /// <summary>For the float path: an integer as itself, exactly; a float as it is. A fraction is no whole number.</summary>
+    private static Value Whole(Value v, TextSpan at) => v switch
+    {
+        IntValue i => new FloatValue(i.Number),
+        RatioValue => throw new CalcError(ErrorKind.Domain, "Bit operators need whole numbers.", at),
+        _ => v,
+    };
+
+    public Value Factorial(Value a, TextSpan at) => _floats.Factorial(a, at);
+
+    // Comparisons and functions
+
+    /// <summary>Exactly, an exact value against a float too: n/d against y as n against y·d, since d &gt; 0.</summary>
+    public int? Compare(Value a, Value b)
+    {
+        if (Fraction(a) is (ApInt n1, ApInt d1) && Fraction(b) is (ApInt n2, ApInt d2)) return ExactFunctions.Compare(n1, d1, n2, d2);
+        if (a is FloatValue && b is FloatValue) return _floats.Compare(a, b);
+        bool flipped = a is FloatValue;
+        var (n, d) = Fraction(flipped ? b : a)!.Value;
+        ApFloat y = ((FloatValue)(flipped ? a : b)).Number;
+        if (y.IsNaN) return null;
+        int c = Math.Sign(((ApFloat)n).CompareTo(Times(d, y)));
+        return flipped ? -c : c;
+    }
+
+    /// <summary>
+    /// abs, sign, floor, ceil, trunc and round of an exact value are exact, and max and min pick one of their arguments
+    /// by exact comparison, as it is. sqrt and fma stay exact where they can. Anything else, as the W sessions'
+    /// functions will be, is the float function, right for the exact argument (<see cref="RoundedCall"/>).
+    /// </summary>
+    public Value Call(string name, IReadOnlyList<Value> arguments, TextSpan at)
+    {
+        FunctionTable.Check(name, arguments.Count, at);
+        if (arguments.All(v => v is FloatValue)) return _floats.Call(name, arguments, at);
+        switch (name)
+        {
+            case "sqrt":
+                return Sqrt(arguments[0], at);
+            case "max" or "min":
+                return Pick(name == "max" ? 1 : -1, name, arguments, at);
+            case "fma":
+                return Fma(arguments, at);
+        }
+        if (Fraction(arguments[0]) is (ApInt n, ApInt d))
+        {
+            switch (name)
+            {
+                case "abs": return arguments[0] is RatioValue r ? r.Abs() : new IntValue(ApInt.Abs(n));
+                case "sign": return new IntValue(n.Sign);
+                case "floor": return new IntValue(ExactFunctions.Floor(n, d));
+                case "ceil": return new IntValue(ExactFunctions.Ceiling(n, d));
+                case "trunc": return new IntValue(ExactFunctions.Truncate(n, d));
+                case "round": return new IntValue(ExactFunctions.Round(n, d));
+            }
+        }
+        return RoundedCall.Of(_floats, arguments, v => _floats.Call(name, v, at));
+    }
+
+    /// <summary>
+    /// The largest (want 1) or smallest (want -1) argument, as it is: max(1/3, 0.2) is exactly 1/3. A tie between an
+    /// exact value and a float goes to the exact one.
+    /// </summary>
+    private Value Pick(int want, string name, IReadOnlyList<Value> arguments, TextSpan at)
+    {
+        Value best = arguments[0];
+        for (int i = 1; i < arguments.Count; i++)
+        {
+            // Unordered only with NaN, which a precision target never makes: IEEE's rule then, from the float path.
+            if (Compare(arguments[i], best) is not int c) return RoundedCall.Of(_floats, arguments, v => _floats.Call(name, v, at));
+            if (c == want || (c == 0 && best is FloatValue && arguments[i] is not FloatValue)) best = arguments[i];
+        }
+        return best;
+    }
+
+    /// <summary>
+    /// a·b + c exactly within the budgets. With a float among them, each float is taken as the fraction it is, so the
+    /// answer is rounded once, from the exact value.
+    /// </summary>
+    private Value Fma(IReadOnlyList<Value> arguments, TextSpan at)
+    {
+        Value Floats(IReadOnlyList<Value> v) => _floats.Call("fma", v, at);
+        bool mixed = arguments.Any(v => v is FloatValue);
+        if (Fraction(AsExact(arguments[0])) is not (ApInt n1, ApInt d1) || Fraction(AsExact(arguments[1])) is not (ApInt n2, ApInt d2)
+            || Fraction(AsExact(arguments[2])) is not (ApInt n3, ApInt d3))
+            return RoundedCall.Of(_floats, arguments, Floats);
+        if (ExactProduct(n1, d1, n2, d2) is Value product && Fraction(product) is (ApInt pn, ApInt pd)
+            && ExactSum(pn, pd, n3, d3, negate: false) is Value sum)
+            return mixed ? _floats.Rounded(sum, at) : sum;
+
+        // Past a budget: as one fraction, (n1·n2·d3 + n3·d1·d2) / (d1·d2·d3), built and divided once if the work allows.
+        long numeratorBits = Math.Max(n1.BitLength + n2.BitLength + d3.BitLength, n3.BitLength + d1.BitLength + d2.BitLength) + 1;
+        long denominatorBits = d1.BitLength + d2.BitLength + d3.BitLength;
+        Value Unreduced() => _floats.Quotient(n1 * n2 * d3 + n3 * d1 * d2, d1 * d2 * d3, at);
+        Value result = WithinWork(n1.BitLength, n2.BitLength) && WithinWork(numeratorBits, denominatorBits)
+            ? Unreduced()
+            : RoundedCall.Of(_floats, arguments, Floats, unsettled: Unreduced);
+        return mixed ? result : TooLarge(result);
+    }
+
+    /// <summary>A value as an exact fraction: itself if exact; a float as the fraction it is, if the budgets allow.</summary>
+    private Value? AsExact(Value v)
+    {
+        if (v is not FloatValue { Number: var x }) return v;
+        if (!x.IsFinite) return null;
+        if (x.IsZero) return new IntValue(ApInt.Zero);
+        ApInt m = x.Significand;
+        return Scaled(x.IsNegative ? -m : m, x.Exponent);
+    }
+
+    private static (ApInt Numerator, ApInt Denominator)? Fraction(Value? v) => v switch
     {
         IntValue i => (i.Number, ApInt.One),
         RatioValue r => (r.Numerator, r.Denominator),

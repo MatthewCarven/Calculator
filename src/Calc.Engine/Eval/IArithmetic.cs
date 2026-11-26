@@ -6,7 +6,8 @@ namespace Calc.Engine.Eval;
 
 /// <summary>
 /// The number kinds' half of evaluation. The <see cref="Evaluator"/> walks the tree and knows no number types; this does
-/// the arithmetic. Each operation gets the text it's about, for its errors. Floats now; exact values in B7.
+/// the arithmetic. Each operation gets the text it's about, for its errors. <see cref="FloatArithmetic"/> for floats, and
+/// <see cref="ExactArithmetic"/> for integers and fractions, which hands floats to it.
 /// </summary>
 public interface IArithmetic
 {

@@ -9,10 +9,22 @@ namespace Calc.Engine.Text;
 
 /// <summary>
 /// A value as people see it: <see cref="Short"/> for a list row, under 40 characters; <see cref="Main"/> for the result
-/// area; its <see cref="Kind"/>; the <see cref="Digits"/> its precision guarantees (rule 9); and whether Main holds them all.
+/// area; its <see cref="Kind"/>, the chip; the <see cref="Digits"/> its precision guarantees (rule 9), or an exact
+/// integer's digit count; and whether Main holds them all.
 /// </summary>
+/// <remarks>
+/// The chips are "exact", "exact = n/d" for a fraction whose parts are short, "float", and "float (exact too large)".
+/// <see cref="Caption"/> is the line under the result: "float, 76 digits", "exact, 302 digits", "exact, about 301,030
+/// digits", "exact = 1/3".
+/// </remarks>
 public sealed record ResultText(string Short, string Main, string Kind, int Digits, bool Complete)
 {
+    /// <summary>The words under the result, for the window and the console calculator alike.</summary>
+    public string Caption { get; init; } = Kind;
+
+    /// <summary>A fraction's chip shows it as n/d while that's at most this long: "exact = 22/7".</summary>
+    public const int FractionWidth = 20;
+
     /// <summary>Main shows every guaranteed digit by G up to here: through 4,096 bits, whose 1,232 digits take 10 ms.</summary>
     public const int MainLimit = 1300;
 
@@ -41,12 +53,16 @@ public sealed record ResultText(string Short, string Main, string Kind, int Digi
         if (value is not FloatValue { Number: var x } floatValue)
             throw new ArgumentException($"No text for a {value.GetType().Name}.", nameof(value));
         // The chip: a float standing in for an exact answer past a budget says so.
-        return OfFloat(x, target, options) with { Kind = floatValue.ExactTooLarge ? "float (exact too large)" : "float" };
+        string kind = floatValue.ExactTooLarge ? "float (exact too large)" : "float";
+        var text = OfFloat(x, target, options);
+        return text with { Kind = kind, Caption = x.IsFinite ? $"{kind}, {Count(text.Digits)}" : kind };
     }
 
     /// <summary>
-    /// B7's plain text for exact values; B8 adds "= n/d", "exact, about N digits" and the chips. An integer shows every
-    /// digit while it has at most <see cref="MainLimit"/>; a fraction shows its decimal at the target.
+    /// An integer shows every digit while it has at most <see cref="MainLimit"/>, and past that a preview, as a float's
+    /// would be, with about how many digits it has. A fraction shows its decimal, every digit worked out from n/d exactly,
+    /// so the last one is right, not just right for the fraction rounded to the target first; its chip shows n/d too
+    /// when that's short.
     /// </summary>
     private static ResultText OfExact(Value value, Target target, TextOptions options)
     {
@@ -55,17 +71,95 @@ public sealed record ResultText(string Short, string Main, string Kind, int Digi
             if (n.BitLength <= ExactDigitBits)
             {
                 string whole = n.ToString();
+                int count = whole.TrimStart('-').Length;
                 string main = options.Notation == Notation.Auto ? whole : Render(Parts.Of(whole), options.Notation);
                 string shortText = whole.Length <= ShortWidth ? whole : ShortOf(n, 17);
-                return new ResultText(shortText, Group(main, options), "exact", whole.TrimStart('-').Length, true);
+                return new ResultText(shortText, Group(main, options), "exact", count, true) { Caption = $"exact, {Count(count)}" };
             }
-            // Too long to show whole: its exact value, previewed as a float's would be, with about how many digits it has.
             int about = (int)Math.Floor((n.BitLength - 1) * 0.30102999566398120) + 1;
-            return OfBits(n, about, options) with { Kind = "exact" };
+            return OfBits(n, about, options) with { Kind = "exact", Caption = $"exact, about {Count(about)}" };
         }
+
         var r = (RatioValue)value;
-        ApFloat quotient = ApFloat.Divide(r.Numerator, r.Denominator, target.Precision);
-        return OfBits(quotient, Protocol.Digits.For(target.Precision), options) with { Kind = "exact" };
+        int digits = Protocol.Digits.For(target.Precision);
+        bool complete = digits <= MainLimit;
+        int shown = complete ? digits : PreviewDigits;
+        var (parts, exactly) = Decimal(r.Numerator, r.Denominator, shown);
+        string mainText = options.Notation == Notation.Auto ? General(parts, shown) : Render(parts, options.Notation);
+        // n/d as text only when it could be short: a 15,850-bit denominator takes longer to write in decimal than the rest.
+        bool small = r.Numerator.BitLength <= 3.33 * FractionWidth && r.Denominator.BitLength <= 3.33 * FractionWidth;
+        string chip = small && r.ToString() is { Length: <= FractionWidth } fraction ? "exact = " + fraction : "exact";
+        string caption = chip != "exact" ? chip : exactly ? "exact" : $"exact, {Count(shown)} shown";
+        return new ResultText(ShortOf(r, digits), Group(mainText, options), chip, digits, complete) { Caption = caption };
+    }
+
+    /// <summary>"1 digit", "76 digits", "301,030 digits".</summary>
+    private static string Count(int digits) => digits.ToString("N0", Invariant) + (digits == 1 ? " digit" : " digits");
+
+    /// <summary>
+    /// n/d to <paramref name="count"/> significant digits, rounded to nearest with ties to even, from the integers
+    /// themselves: the digits, padded with zeros to the count, the decimal exponent of the first, and whether that's n/d
+    /// exactly. Cheap at any precision: the work is one division of numbers a few thousand digits long.
+    /// </summary>
+    private static (Parts Parts, bool Exactly) Decimal(ApInt n, ApInt d, int count)
+    {
+        ApInt magnitude = ApInt.Abs(n);
+        ApInt low = ApInt.Pow(10, count - 1), high = low * 10;
+        // floor(log10(|n|/d)) from each part's top 64 bits: right but for a value within a hair of a power of ten, which
+        // the loop corrects. A size estimate, not a value, so a double is fine (rule 3 is about values).
+        long exponent = (long)Math.Floor(Log10(magnitude) - Log10(d));
+        for (int tries = 0; tries < 8; tries++)
+        {
+            long scale = count - 1 - exponent;
+            ApInt numerator = scale >= 0 ? magnitude * ApInt.Pow(10, (int)scale) : magnitude;
+            ApInt denominator = scale >= 0 ? d : d * ApInt.Pow(10, (int)-scale);
+            var (q, remainder) = ApInt.DivRem(numerator, denominator);
+            if (q < low) { exponent--; continue; }
+            if (q >= high) { exponent++; continue; }
+            int half = (remainder << 1).CompareTo(denominator);
+            if (half > 0 || (half == 0 && !(q & ApInt.One).IsZero))
+            {
+                q += ApInt.One;
+                if (q == high)
+                {
+                    q = low;
+                    exponent++;
+                }
+            }
+            return (new Parts(n.IsNegative, q.ToString(), exponent), remainder.IsZero);
+        }
+        throw new InvalidOperationException($"No decimal exponent for a {n.BitLength}-bit by {d.BitLength}-bit fraction in 8 tries.");
+    }
+
+    private static double Log10(ApInt x)
+    {
+        int drop = (int)Math.Max(0, x.BitLength - 64);
+        return Math.Log10(ulong.CreateChecked(x >> drop)) + drop * 0.30102999566398120;
+    }
+
+    /// <summary>
+    /// The G layout, from parts, as Natural's G&lt;k&gt; lays out a float: trailing zeros dropped, plain from 1E-005 up
+    /// to 10^k, scientific outside that.
+    /// </summary>
+    private static string General(Parts parts, int k)
+    {
+        if (parts.IsZero) return parts.Negative ? "-0" : "0";
+        string digits = TrimZeros(parts.Digits);
+        string sign = parts.Negative ? "-" : "";
+        long x = parts.Exponent;
+        if (x < -5 || x >= k) return sign + Point(digits, 1) + ExponentText(x);
+        if (x < 0) return sign + "0." + new string('0', (int)(-x - 1)) + digits;
+        return sign + Point(digits, (int)x + 1);
+    }
+
+    /// <summary>A fraction's short text: G at up to 17 digits, from its exact decimal, fewer if it would reach 40 characters.</summary>
+    private static string ShortOf(RatioValue r, int digits)
+    {
+        for (int k = Math.Min(digits, 17); ; k--)
+        {
+            string text = General(Decimal(r.Numerator, r.Denominator, k).Parts, k);
+            if (text.Length <= ShortWidth || k == 1) return text;
+        }
     }
 
     /// <summary>Integers this long have at most <see cref="MainLimit"/> digits: 1,300 / log10(2), less a bit.</summary>

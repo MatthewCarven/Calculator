@@ -45,6 +45,22 @@ public class EvalFlagTests
     }
 
     [Fact]
+    public async Task ExactValuesShowAsTheWindowWillShowThem()
+    {
+        // B8's Done-when: exactly 3/10 shows as 0.3, and 2^1000 in full; --caption adds the line under the result.
+        var tenths = await RunWorker("--eval", "0.1+0.2", "--caption");
+        Assert.Equal(["0.3", "exact = 3/10"], tenths.Stdout.TrimEnd('\r', '\n').Split(Environment.NewLine));
+        Assert.Equal("", tenths.Stderr);
+        var power = await RunWorker("--eval", "2^1000", "--caption");
+        string[] lines = power.Stdout.TrimEnd('\r', '\n').Split(Environment.NewLine);
+        Assert.Equal(302, lines[0].Length);
+        Assert.StartsWith("10715086071862673209484250490600018105614048117055336074437503883703510511249361224931983788156958581275946729175531468251871452856923140435984577574698574803934567774824230985421074605062371141877954182153046474983581941267398767559165543946077062914571196477686542167660429831652624386837205668069376", lines[0]);
+        Assert.Equal("exact, 302 digits", lines[1]);
+        var root = await RunWorker("--eval", "sqrt(2)", "--bits", "53", "--caption");
+        Assert.Equal(["1.4142135623731", "float, 15 digits"], root.Stdout.TrimEnd('\r', '\n').Split(Environment.NewLine));
+    }
+
+    [Fact]
     public async Task AnErrorGoesToStderrWithItsKindAndSpan()
     {
         var (code, stdout, stderr) = await RunWorker("--eval", "1/0");

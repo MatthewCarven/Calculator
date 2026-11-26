@@ -268,7 +268,7 @@ public class ExactTests
         Assert.Equal(IeeeFlags.Inexact, outcome.Flags);
         var alone = Evaluator.Run("Ans", Target.Bits(53), RoundingMode.ToNearestEven, third, exact: false).Value;
         Assert.Equal(1.0 / 3, (double)Assert.IsType<FloatValue>(alone).Number);
-        // A mixed operation converts the exact side at the target (B8 makes this honest).
+        // A mixed operation is a float, rounded once for the exact side (B8: RoundedCallTests).
         Assert.IsType<FloatValue>(V("1/3 + sqrt(2)"));
     }
 
@@ -290,7 +290,7 @@ public class ExactTests
     public void TextForExactValues()
     {
         var third = ResultText.Of(V("1/3"), Bits256);
-        Assert.Equal("exact", third.Kind);
+        Assert.Equal("exact = 1/3", third.Kind); // B8's chip
         Assert.Equal("0." + new string('3', 76), third.Main);
         var big = ResultText.Of(V("2^1000"), Bits256);
         Assert.Equal(BigInteger.Pow(2, 1000).ToString(), big.Main);

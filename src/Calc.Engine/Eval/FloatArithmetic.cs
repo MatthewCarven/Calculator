@@ -7,8 +7,8 @@ namespace Calc.Engine.Eval;
 
 /// <summary>
 /// Floats, each operation correctly rounded through the evaluation's one <see cref="IeeeContext"/> (rule 4), never
-/// ApFloat's operators, which widen to the larger operand's precision. + − × ÷ and negate now; the rest say not
-/// available until B5, and ! until F4.
+/// ApFloat's operators, which widen to the larger operand's precision. ! says not available until F4. An operand may be
+/// wider than the target, as <see cref="RoundedCall"/> passes them: it's exact, and still rounded only once.
 /// </summary>
 /// <remarks>
 /// The policy follows the target. At bits it's Mathematical: an operation that raises DivideByZero or Invalid is an
@@ -20,7 +20,33 @@ public sealed class FloatArithmetic(Target target, RoundingMode mode) : IArithme
     private readonly IeeeContext _ieee = target.NewContext(mode);
     private readonly bool _mathematical = !target.IsFormat;
 
-    public IeeeFlags Flags => _ieee.Flags;
+    /// <summary>The flags raised so far. <see cref="RoundedCall"/> sets them back after trying an end it doesn't keep.</summary>
+    public IeeeFlags Flags
+    {
+        get => _ieee.Flags;
+        internal set => _ieee.Flags = value;
+    }
+
+    /// <summary>The target's precision in bits.</summary>
+    internal int Precision => _ieee.Precision;
+
+    /// <summary>
+    /// numerator / denominator, rounded once: how <see cref="ExactArithmetic"/> turns an exact answer it can build but not
+    /// keep, or an exact side times a float, into a float. The operands may be wider than the target: they're exact.
+    /// </summary>
+    internal FloatValue Quotient(ApFloat numerator, ApFloat denominator, TextSpan at)
+    {
+        if (_mathematical && denominator.IsZero) throw DivisionByZero(at);
+        var before = _ieee.Flags;
+        return Checked(_ieee.Divide(numerator, denominator), before, at);
+    }
+
+    /// <summary>An exact value rounded once to the target, as a float.</summary>
+    internal FloatValue Rounded(Value exact, TextSpan at)
+    {
+        var before = _ieee.Flags;
+        return Checked(F(exact), before, at);
+    }
 
     /// <summary>
     /// Rounded once: decimal and hex-float text by <see cref="IeeeContext.Parse"/>, whole numbers exactly by
@@ -108,10 +134,16 @@ public sealed class FloatArithmetic(Target target, RoundingMode mode) : IArithme
         ApFloat x = F(a), y = F(b);
         if (_mathematical && y.IsZero) throw DivisionByZero(at);
         var before = _ieee.Flags;
-        // The truncated remainder is exact. Where its sign differs from y's, the floored one is r + y, rounded once.
+        // The truncated remainder is exact, then rounded. Where its sign differs from y's, the floored one is r + y,
+        // from the exact remainder, so it too rounds once: an operand wider than the target, as RoundedCall passes, can
+        // leave a remainder the target can't hold.
         ApFloat r = _ieee.Remainder(x, y);
         if (r.IsZero) r = ApFloat.CopySign(r, y);
-        else if (!r.IsNaN && r.IsNegative != y.IsNegative) r = _ieee.Add(r, y);
+        else if (!r.IsNaN && r.IsNegative != y.IsNegative)
+        {
+            _ieee.Flags = before;
+            r = _ieee.Add(x % y, y);
+        }
         return Checked(r, before, at);
     }
 
@@ -234,8 +266,9 @@ public sealed class FloatArithmetic(Target target, RoundingMode mode) : IArithme
 
     /// <summary>
     /// A value as a float at the target. An exact one converts here, rounding once: an integer by Convert, a fraction by
-    /// one Divide, since the implicit conversions are exact up to 2^30 bits. That's how Exact off, and B7's mixed
-    /// operations, treat exact operands; B8 makes the mixed ones honest.
+    /// one Divide, since the implicit conversions are exact up to 2^30 bits. That's how Exact off treats an exact Ans.
+    /// <see cref="ExactArithmetic"/> never passes exact operands here: it rounds them its own way (B8), so the answer is
+    /// right for the exact value, not for the value rounded first.
     /// </summary>
     private ApFloat F(Value value) => value switch
     {

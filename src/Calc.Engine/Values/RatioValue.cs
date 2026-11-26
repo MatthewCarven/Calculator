@@ -35,6 +35,12 @@ public sealed record RatioValue : Value
         return denominator == ApInt.One ? new IntValue(numerator) : new RatioValue(numerator, denominator);
     }
 
+    /// <summary>-n/d, still in lowest terms, so with no GCD, which costs about 100 ms at the ratio limit.</summary>
+    internal RatioValue Negated() => new(-Numerator, Denominator);
+
+    /// <summary>|n|/d, still in lowest terms.</summary>
+    internal RatioValue Abs() => new(ApInt.Abs(Numerator), Denominator);
+
     /// <summary>Raw n/d, for tests, logs and <c>--raw</c>.</summary>
     public override string ToString() => $"{Numerator}/{Denominator}";
 }
