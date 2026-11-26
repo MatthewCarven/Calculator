@@ -252,3 +252,50 @@ first run M2's edit didn't build, and the script is fixed; and M21, checking the
   bound in `1e300^1e16` would square on until its exponent outgrew a long.
 
 **Next:** B6, result text. Its brief now notes the far-out values B5 makes.
+
+## 2026-11-26, last: B6 done
+
+Result text: `Calc.Protocol/Digits.cs`, `Calc.Engine/Text/ResultText.cs` and `TextOptions.cs`. `ResultText.Of(value, target, options)`
+gives `Short` (under 40 characters, for list rows), `Main` (for the result area), `Kind`, `Digits` and `Complete`. `Main`
+shows every digit the precision guarantees, by G, up to 1,300 digits, so every preset through 4,096 bits is shown whole;
+past that it's a 100-digit preview, rounded to 1,024 bits first, and `Complete` is false so the window can say "of 4,931
+digits". At a format it's the shortest text that reads back. Five notations, optional grouping. 508 tests in all.
+
+**For Matthew to eyeball, 1/3 at 256 bits:**
+
+```
+auto         0.3333333333333333333333333333333333333333333333333333333333333333333333333333
+scientific   3.333333333333333333333333333333333333333333333333333333333333333333333333333E-001
+engineering  333.3333333333333333333333333333333333333333333333333333333333333333333333333E-003
+fixed        0.3333333333333333333333333333333333333333333333333333333333333333333333333333
+aligned      3.333333333333333333333333333333333333333333333333333333333333333333333333333E-001
+```
+
+All 76 digits each time. Scientific and aligned only differ when there are trailing zeros: 1.5 at 53 bits is `1.5E+000`
+scientific and `1.50000000000000E+000` aligned, the fixed width a right-aligned column needs. Grouped with a comma, 1234567.891
+is `1,234,567.891`; the fraction is grouped only if asked, here with thin spaces: `0.333 333 333 333 333`.
+
+**A visible change:** `calc-worker --eval` now prints `Main`, so `0.1+0.2` at 53 bits is **0.3**: 53 bits guarantee 15 digits,
+and the 17th of 0.30000000000000004 is noise (rule 9). At binary64 it's still 0.30000000000000004, IEEE's shortest
+round trip. `--raw` prints every digit that reads back, and `--notation` and `--group` pick the style. The text is rounded to
+nearest whatever the rounding mode, which governs the arithmetic, not the display.
+
+**Tested:** `Digits` for every preset and 2,000,000 precisions against the 128-bit constant, and `BitsFor` minimal for 200,000
+digit counts; tables for each notation; grouping only ever adds separators, across all notations; engineering exponents are
+multiples of 3; −0 folds at bits and stays at a format; text read back is within half a unit of its last digit, for Main at
+random precisions to 4,100 bits, the preview at 16,384, and Short; a format's text reads back to the same bits, with no more
+digits than .NET's shortest, binary64 subnormals included; timing at 2^20 and 2^22 bits; and the top of the exponent range is
+an `Overflow` error, not an exception.
+
+**Mutations:** 19, all predicted red. 18 were. M7, which skips rounding the preview to 1,024 bits, survived: measured again,
+straight E99 at 2^20 bits is about 100 ms in Release, not the 330 ms in the research, and fits the brief's 200 ms budget. It
+grows with the precision, so a test at 2^22 bits now turns it red. The battery is `tests/mutations/b6-text.py`, and runs only
+the Text tests, since nothing else reads this code.
+
+**Choices made here:**
+- `FloatValue.ToString` stays the raw text, for tests, logs and `--raw`. People see `ResultText`.
+- Short ignores the notation: G at up to 17 digits, fewer if a long exponent needs the room.
+- Fixed pads a long whole part with zeros, as a spreadsheet does, and falls back to scientific past 1,400 places (rule 11).
+- Exponents keep Natural's style, at least three digits (`E+005`), which keeps an aligned column even.
+
+**Next:** B7, exact values and operators. Its brief and B8's carry notes from B5 and B6.

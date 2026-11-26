@@ -80,7 +80,7 @@ https://github.com/MatthewCarven/Calculator, which is public, so nothing private
 - [x] B3 Parser (2026-11-26: 150 parser tests, 20,000 random trees round-tripped; 24 of 24 mutations red, one after a new test)
 - [x] B4 Evaluator and float core (2026-11-26: 20,000 trees bit for bit against double and float, 5,000 against a rational oracle; 27 of 28 mutations red, 1 equivalent)
 - [x] B5 Functions and powers (2026-11-26: against Math, MathF, a rational oracle and an exact sqrt check; 29 of 31 mutations red, 2 equivalent)
-- [ ] B6 Result text
+- [x] B6 Result text (2026-11-26: five notations and grouping, text read back within half a unit; 19 of 19 mutations red, one after a new test)
 - [ ] B7 Exact values and operators
 - [ ] B8 Exact functions and display
 - [ ] B9 Worker process
@@ -350,6 +350,7 @@ independently. `0.1+0.2` at 53 bits. One test per error kind. Keep the tree gene
 **Done when:** those pass.
 
 ### B8. Exact functions and display
+**From B6 (2026-11-26):** `ResultText.Of(value, target, options)` throws for anything but a `FloatValue`, so the display here means adding `IntValue` and `RatioValue` branches to it, with their own `Kind` strings for the chips. Its `Parts`, `Render` and `Group` lay out any sign, digit string and decimal exponent, so an exact integer's digits can go through the same notations. Keep its limits: G only to 1,300 digits, a 100-digit preview past that, `Short` under 40 characters.
 **Goal:** the rest of B5's table stays exact where it can, and rounds honestly where it can't.
 **Needs:** B7.
 **Files:** `Eval/ExactFunctions.cs`, `Eval/RoundedCall.cs`, `Text/ResultText.cs`, tests.

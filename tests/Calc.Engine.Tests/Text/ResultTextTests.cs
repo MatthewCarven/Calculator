@@ -284,6 +284,23 @@ public class ResultTextTests
     }
 
     [Fact]
+    public void ThePreviewStaysQuickAt2To22Bits()
+    {
+        // Straight E99 grows with the precision, about 100 ms at 2^20 bits in Release; rounding to 1,024 bits first keeps a
+        // preview under a millisecond at any size. At 2^22 bits the difference can't hide inside the 200 ms budget.
+        var target = Target.Bits(1 << 22);
+        var floats = new FloatArithmetic(target, RoundingMode.ToNearestEven);
+        Value value = floats.Divide(floats.Literal("8761345987234598765", default), floats.Literal("1234567890123456789", default), default);
+        ResultText.Of(value, target);
+        foreach (Notation notation in Enum.GetValues<Notation>())
+        {
+            var clock = Stopwatch.StartNew();
+            ResultText.Of(value, target, new TextOptions(notation));
+            Assert.True(clock.ElapsedMilliseconds < 200, $"{notation}: {clock.ElapsedMilliseconds} ms");
+        }
+    }
+
+    [Fact]
     public void AtTheVeryTopOfTheRangeItsAnOverflowError()
     {
         // Values whose top bit is at 2^63 - 2 or above parse, but can't be printed in decimal (A2).
