@@ -299,3 +299,41 @@ the Text tests, since nothing else reads this code.
 - Exponents keep Natural's style, at least three digits (`E+005`), which keeps an aligned column even.
 
 **Next:** B7, exact values and operators. Its brief and B8's carry notes from B5 and B6.
+
+## 2026-11-27: B7 done
+
+Exact values: `Calc.Engine/Values/IntValue.cs` and `RatioValue.cs`, `Eval/ExactArithmetic.cs`, and `Text/Lossless.cs`.
+Integers and fractions stay exact through + − × ÷, negate, % and integer powers, until something irrational or too large
+forces a float. `0.1+0.2` is 3/10, `1/3*3` is 1, `2^1000` and `10^6000/10` are exact integers, and `1^(10^30)` is exactly 1.
+Exact is on by default in the worker, as it will be in the window; `--exact off` gives floats. 585 tests in all.
+
+**Matthew's answer (2026-11-27): a float at once.** The work budget stays at 2^32, about 1 s per multiply, measured that
+day: `3^100000` exact would take 2.36 s and is a float at once, chipped "float, exact too large"; `3^80000` stays exact, 1.5 s.
+D3 raises the budget once stage D's multiply is faster.
+
+**The budgets** are checked from bit lengths before anything is computed: integers to 2^24 bits, a fraction's parts to 2^14,
+and 2^32 for one multiply, a power on its last squaring. Powers of two are exempt from the work budget, so `2^1000000` is
+exact in under a millisecond. Past a budget it's a float, never a refusal, and `2^(10^12)` lights no Inexact lamp.
+
+**Found on the way:** my first size estimate for a power, bitlen(m)·k, counted 3 as 2 bits instead of 1.585. It would have
+sent `3^80000`, the case in Matthew's preview, to a float. It's k·log2(m) now, from m's top 64 bits. A budget-boundary test
+caught it before anything shipped, and mutation M16 keeps it caught.
+
+**Tested:** 5,000 random trees against an exact fraction oracle, every literal form, with lowest terms checked; each budget
+from both sides, with small budgets so the costly side stays quick; the default budgets giving a float within a second;
+Muller's sequence staying exact to n = 100 and heading for 5, where floats with Exact off reach the famous 100; exact operands
+in floats; an exact exponent kept exact in the float path, so `(-3)^(2^60+1)` stays negative; and `Lossless` round trips
+for every kind at eight targets, specials and −0 included, with malformed and crossed tags refused.
+
+**Mutations:** 22, all predicted red. 21 were; M3, which checks the budget after computing, timed out instead, since it
+really tries to build `7^(10^9)`, which counts as caught. The battery is `tests/mutations/b7-exact.py`.
+
+**Choices made here:**
+- Lossless floats write Natural's `A` text in upper case (`f:256:0X1.8P+0`), matching the integers' hex (`i:-FF`).
+- A fraction's size is checked on its unreduced parts, before the GCD whose cost the limit is there to bound.
+- mod, rem, the bit operators, comparisons and functions still go to floats, converting exact operands at the target; B8
+  makes them exact. `ResultText` shows an exact integer whole up to 4,300 bits, and a fraction as its decimal; B8 adds
+  "= n/d" and the chips.
+- `Evaluator.Run` defaults to floats, so the float core's tests needn't say so; the worker passes exact.
+
+**Next:** B8, exact functions and display. Its brief carries notes from B6 and B7.

@@ -81,7 +81,7 @@ https://github.com/MatthewCarven/Calculator, which is public, so nothing private
 - [x] B4 Evaluator and float core (2026-11-26: 20,000 trees bit for bit against double and float, 5,000 against a rational oracle; 27 of 28 mutations red, 1 equivalent)
 - [x] B5 Functions and powers (2026-11-26: against Math, MathF, a rational oracle and an exact sqrt check; 29 of 31 mutations red, 2 equivalent)
 - [x] B6 Result text (2026-11-26: five notations and grouping, text read back within half a unit; 19 of 19 mutations red, one after a new test)
-- [ ] B7 Exact values and operators
+- [x] B7 Exact values and operators (2026-11-27: an exact oracle, each budget from both sides, Muller exact; 22 of 22 mutations caught, one by timeout)
 - [ ] B8 Exact functions and display
 - [ ] B9 Worker process
 - [ ] B10 Worker client, with Stop
@@ -351,6 +351,7 @@ independently. `0.1+0.2` at 53 bits. One test per error kind. Keep the tree gene
 **Done when:** those pass.
 
 ### B8. Exact functions and display
+**From B7 (2026-11-27):** `ExactArithmetic` is exact for + − × ÷, negate, % and integer powers; mod, rem, the bit operators, `Compare` and every `Call` still go to `FloatArithmetic`, whose `F` converts an exact operand at the target. Replace those delegations here. A mixed operation with a float converts the exact side the same way, which `RoundedCall` makes honest. Budgets come from `ExactBudgets`, and a power's size estimate is k·log2(m) (`PowerBits`), not bitlen(m)·k, which would have sent 3^80000 to a float. `FloatArithmetic.Exponent` already passes an exact integer or half exponent as itself. `ResultText.OfExact` is B7's plain text: an integer whole up to 4,300 bits, a fraction as its decimal at the target, `Kind` "exact"; and a fallback float's `Kind` is "float (exact too large)". `Evaluator.Run`'s `exact` defaults to false for the float tests' sake; the worker passes true.
 **From B6 (2026-11-26):** `ResultText.Of(value, target, options)` throws for anything but a `FloatValue`, so the display here means adding `IntValue` and `RatioValue` branches to it, with their own `Kind` strings for the chips. Its `Parts`, `Render` and `Group` lay out any sign, digit string and decimal exponent, so an exact integer's digits can go through the same notations. Keep its limits: G only to 1,300 digits, a 100-digit preview past that, `Short` under 40 characters.
 **Goal:** the rest of B5's table stays exact where it can, and rounds honestly where it can't.
 **Needs:** B7.
