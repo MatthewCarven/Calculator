@@ -10,8 +10,8 @@ public abstract record Value;
 public sealed record FloatValue(ApFloat Number) : Value
 {
     /// <summary>
-    /// Plain text until B6's ResultText: the shortest that reads back, within rule 10's limit for "R", and
-    /// scientific past it.
+    /// Raw text, for tests, logs and <c>--raw</c>: every digit that reads back ("R", within rule 10's limit), and scientific
+    /// past it. What people see is <see cref="Text.ResultText"/>, which shows only the digits the precision guarantees.
     /// </summary>
     public override string ToString() =>
         Number.ToString(Number.Precision <= 2048 ? "R" : "E99", CultureInfo.InvariantCulture);

@@ -8,20 +8,27 @@ public class EvalFlagTests
     [Fact]
     public async Task EvaluatesAtTheBitsAsked()
     {
-        // B4's Done-when.
+        // B4's Done-when, now through B6's text: 53 bits guarantee 15 digits (rule 9), so the noise in the 17th goes. --raw
+        // and binary64 show every digit that reads back.
         var (code, stdout, stderr) = await RunWorker("--eval", "0.1+0.2", "--bits", "53");
         Assert.True(code == 0, $"exit {code}: {stderr}");
-        Assert.Equal("0.30000000000000004", stdout.TrimEnd('\r', '\n'));
+        Assert.Equal("0.3", stdout.TrimEnd('\r', '\n'));
         Assert.Equal("flags: Inexact", stderr.TrimEnd('\r', '\n'));
+        Assert.Equal("0.30000000000000004", (await RunWorker("--eval", "0.1+0.2", "--bits", "53", "--raw")).Stdout.TrimEnd('\r', '\n'));
+        Assert.Equal("0.30000000000000004", (await RunWorker("--eval", "0.1+0.2", "--format", "binary64")).Stdout.TrimEnd('\r', '\n'));
     }
 
     [Theory]
     [InlineData("1+1", "2")]
-    [InlineData("1/3 --mode up --bits 53", "0.33333333333333337")]
-    [InlineData("1/3 --mode down --bits 53", "0.3333333333333333")]
+    // Up is 0.33333333333333337; its 15 shown digits round to nearest, since the mode governs arithmetic, not text.
+    [InlineData("1/3 --mode up --bits 53", "0.333333333333333")]
+    [InlineData("1/3 --mode up --bits 53 --raw", "0.33333333333333337")]
+    [InlineData("1/3 --mode down --bits 53", "0.333333333333333")]
     [InlineData("1/0 --format binary64", "Infinity")]
     [InlineData("0/0 --format binary64", "NaN")]
     [InlineData("0x1.8p+1+0o17", "18")]
+    [InlineData("1/3 --bits 53 --notation engineering", "333.333333333333E-003")]
+    [InlineData("1234567.5 --bits 53 --group ,", "1,234,567.5")]
     public async Task PrintsTheResult(string arguments, string expected)
     {
         string[] parts = arguments.Split(' ');
@@ -46,6 +53,8 @@ public class EvalFlagTests
     [InlineData("--eval", "1", "--bits", "0")]
     [InlineData("--eval", "1", "--format", "binary63")]
     [InlineData("--eval", "1", "--mode", "sideways")]
+    [InlineData("--eval", "1", "--notation", "roman")]
+    [InlineData("--eval", "1", "--notation", "7")]
     public async Task BadArgumentsAreAUsageError(params string[] arguments)
     {
         var (code, stdout, stderr) = await RunWorker(arguments);
