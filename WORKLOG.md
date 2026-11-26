@@ -337,3 +337,61 @@ really tries to build `7^(10^9)`, which counts as caught. The battery is `tests/
 - `Evaluator.Run` defaults to floats, so the float core's tests needn't say so; the worker passes exact.
 
 **Next:** B8, exact functions and display. Its brief carries notes from B6 and B7.
+
+## 2026-11-27, later: B8 done
+
+Exact functions and display: `Calc.Engine/Eval/ExactFunctions.cs` and `RoundedCall.cs`, with the rest in `ExactArithmetic`
+and `Text/ResultText.cs`. abs, sign, floor, ceil, trunc, round, max, min, mod, rem, fma, comparisons and the bit operators
+stay exact on integers and fractions, and so does the sqrt of a perfect square: `sqrt(16/9)` is 4/3, `floor(-7/2)` is -4,
+`(7/2) mod (1/3)` is 1/6, and `max(1/3, 0.2)` is exactly 1/3. 710 tests in all.
+
+**Rounded once, for the exact value.** Where an exact value meets a float or outgrows a budget, the answer is now the exact
+one rounded once. B7 rounded the exact value first, which the review measured as wrong in about 30% of cases like
+`1/3*sqrt(2)`. Now `sqrt(1/7)` at 53 bits is 0.37796447300922725, where rounding 1/7 first gave ...2720, and `1.1^5000`
+at 53 bits is 9.19233389907065E+206, where rounding 1.1 first gets the last 3 digits wrong. `(1/7)^(1/2)` is sqrt now.
+
+**RoundedCall**, the helper the W sessions will use, brackets each exact argument from below and above at
+W = p + 64 + max(0, top(x)) bits, doubles W until the ends agree, and stops at the brief's bound, taking the nearest. It's
+tested by stand-in functions, since Natural has no ln yet: the widths it tries and its bound exactly, an end that divides by
+zero (1/(1-x) at x = 1 - 10^-100, which rounds up to 1 at 320 bits), an end that gives infinity, and a failed end's flags
+not kept.
+
+**Found on the way:** brackets can't settle where the answer is itself exact, and for mixed products and remainders that's
+common, not rare. 1/3 × 3.0 is exactly 1, 2.5 mod 2/3 is 1/2, and 2·10^20 mod 2/3 is 0; the random over-budget test hit
+the last one. So × and ÷ with a float go by one exact division, and mod, rem and fma take the float as the fraction it is.
+Over-budget work builds the fraction unreduced and divides once, while the work budget allows. RoundedCall gained an
+`unsettled` hook for the rare case none of those cover, so it gives the exact answer instead of the nearest guess. And a
+100-digit preview of 1/3^10000 took 130 ms, most of it spent writing the 4,772-digit denominator in decimal to see whether
+"= n/d" would fit. Checking bit lengths first brought it to 30 ms.
+
+**Display:** a fraction's digits are worked out from n/d exactly and rounded once, so the last one is right, and its chip
+says "exact = 3/10" when the parts are short. `ResultText.Caption` is the new line under the result: "float, 76 digits",
+"exact, 302 digits", "exact, about 30,103 digits", "exact = 1/3". `calc-worker --eval` takes `--caption`:
+
+```
+calc-worker --eval "0.1+0.2" --caption    0.3 / exact = 3/10
+calc-worker --eval "2^100000" --caption   9.990020930143845...E+30102 / exact, about 30,103 digits
+```
+
+**Tested:** a table of exact results and errors; 5,000 random fractions through every rounding function, mod, rem, fma,
+max, min and compare against BigInteger fractions, lowest terms checked; bit operators and shifts against BigInteger; sqrt
+of exact values bracketed by squaring in all four modes at random precisions; mixed + − × ÷ against the exact answer
+rounded once, with a count showing that rounding first would have differed in at least a tenth of the cases, so the test
+can tell; mixed mod, rem and fma likewise; every over-budget operation under small budgets; exact powers past the budget;
+a fraction's digits against BigInteger on both sides of the 1,300-digit limit; m/2^k's text in every notation against the
+same float's, which checks the new G layout against Natural's own; and both previews timed.
+
+**Mutations:** 38, all predicted red, and all 38 were, including the brief's five. The battery is
+`tests/mutations/b8-exact-functions.py`.
+
+**Choices made here:**
+- `RoundedCall` is public, so its tests can drive it, rather than adding `InternalsVisibleTo`. It takes `absolute` (false
+  for × ÷ √ ^, which care only about relative error, so a huge integer isn't passed whole), `extraBits` (bits(y) for
+  powers) and `unsettled`.
+- max and min return the winning argument as it is, and on a tie between an exact value and a float, the exact one.
+- A fraction's chip shows n/d while it's at most 20 characters. A long fraction's caption is "exact, 76 digits shown",
+  or just "exact" when its decimal ends within them.
+- sqrt of a number whose square-root check would cost too much is chipped "float (exact too large)"; a number known not to
+  be a square (an odd count of twos, or SqrtRem said so) gives a plain float.
+
+**Next:** B9, the worker process. Its brief carries a note from B8 about `caption`.

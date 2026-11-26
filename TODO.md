@@ -82,7 +82,7 @@ https://github.com/MatthewCarven/Calculator, which is public, so nothing private
 - [x] B5 Functions and powers (2026-11-26: against Math, MathF, a rational oracle and an exact sqrt check; 29 of 31 mutations red, 2 equivalent)
 - [x] B6 Result text (2026-11-26: five notations and grouping, text read back within half a unit; 19 of 19 mutations red, one after a new test)
 - [x] B7 Exact values and operators (2026-11-27: an exact oracle, each budget from both sides, Muller exact; 22 of 22 mutations caught, one by timeout)
-- [ ] B8 Exact functions and display
+- [x] B8 Exact functions and display (2026-11-27: exact functions against BigInteger fractions, RoundedCall by stand-ins, every mixed and over-budget operation against the exact answer rounded once; 38 of 38 mutations red)
 - [ ] B9 Worker process
 - [ ] B10 Worker client, with Stop
 - [ ] B11 Session, the clear rule, console calculator
@@ -363,8 +363,10 @@ independently. `0.1+0.2` at 53 bits. One test per error kind. Keep the tree gene
 **Tests:** a table of exact results; `sqrt(1/7)` at 53 bits is 0.37796447300922725; `sqrt(1+1e-1000)` at 256 bits in every mode; `RoundedCall`'s bound, and an erroring end, by stand-in functions, because Natural has no `ln` yet; `1.1^5000`; one random test of mixed operators against the rational oracle; ratio and big-integer previews, timed.
 **Mutations:** `SqrtRem`'s remainder ignored; a ratio floor on negatives; the helper taking one end; the bound off by one; an erroring end accepted.
 **Done when:** those pass, and `calc-worker --eval` shows `0.1+0.2` as 0.3 and `2^1000` in full.
+**Built (2026-11-27), where it differs from the above:** mixed × and ÷ don't go through `RoundedCall`: the exact side's parts times the float, exactly, then one division, because `RoundedCall` can't settle where the answer is itself exact, as 1/3 × 3.0 is, in a directed mode. mod, rem and fma with a float take the float as the fraction it is, for the same reason (2.5 mod 2/3 is exactly 1/2). Past a budget, + − × ÷ mod and fma build the fraction unreduced and divide once, while the work budget allows, and only past that use `RoundedCall`. `RoundedCall` gained `absolute` (false for × ÷ √ ^, which care only about relative error, so a 2^20-bit integer isn't passed whole), `extraBits` (bits(y) for powers) and `unsettled` (an exact answer to give at the bound instead of the nearest: a remainder whose quotient is whole uses it). It's public, so the tests can drive it, rather than adding `InternalsVisibleTo`. "exact, about N digits" is the new `ResultText.Caption`, the line under the result; `Kind` is the chip.
 
 ### B9. Worker process
+**From B8 (2026-11-27):** `ResultText` has `Caption` beside `Kind`: the chip is `Kind` ("exact", "exact = 3/10", "float", "float (exact too large)"), and `Caption` is the line under the result ("float, 76 digits", "exact, 302 digits", "exact, about 30,103 digits", "exact = 1/3"). Send `caption` in `result` too, so the Client never builds those words. `--eval` takes `--caption`; keep `--eval` working beside the loop, since agents use it.
 **Goal:** the engine behind a stdio loop that survives anything.
 **Needs:** B8.
 **Files:** `Calc.Protocol/EvalContext.cs`, `Messages.cs`, `Calc.Worker/Program.cs`, `Loop.cs`, tests.
@@ -394,7 +396,7 @@ independently. `0.1+0.2` at 53 bits. One test per error kind. Keep the tree gene
 **Goal:** the behaviour in PLAN.md's clear table, in plain testable code, and a console calculator to try.
 **Needs:** B10.
 **Files:** `Calc.Client/Session.cs`, `HistoryLine.cs`, `Calc.Cli/Program.cs`, tests.
-**A history line:** id, source, `EvalContext`, `AnsFrom` (the line `Ans` meant, when the source mentions it, found with the Lexer), short, main, kind, digits, lossless or held, flags, time.
+**A history line:** id, source, `EvalContext`, `AnsFrom` (the line `Ans` meant, when the source mentions it, found with the Lexer), short, main, kind, caption, digits, lossless or held, flags, time. The Cli prints `main`, then `caption`.
 **`Ans` is a line, not only a number.** The keypad writes `Ans` into every chain, so text alone isn't enough: `2+3` then `Ans*4` must recompute to 20, whatever else has happened. `Session` holds the current `Ans` line.
 **Operations:**
 - `EvaluateAsync(source)`. If the source mentions `Ans` and there's none, the message says it was cleared, and offers to recompute the line.
@@ -434,7 +436,7 @@ Every session here runs `--smoke`, takes dark and light screenshots, and ends wi
 **Goal:** type, press Enter, see the answer, and see where an error is.
 **Needs:** C1.
 **Files:** `Calc.Client/ShellState.cs`, `Calc.App/Views/EntryView.xaml`, `ResultView.xaml`.
-**How:** a monospace entry box. Enter evaluates, Esc is CE, Up and Down walk the history. The result shows `Main`, the kind chip, and `understood` when the worker sends it. An error underlines its span in the entry, and says what's wrong in a sentence.
+**How:** a monospace entry box. Enter evaluates, Esc is CE, Up and Down walk the history. The result shows `Main`, the kind chip, `Caption` under it (B8), and `understood` when the worker sends it. An error underlines its span in the entry, and says what's wrong in a sentence.
 **Traps:** nothing evaluates on a keystroke yet (H8).
 **Tests:** `ShellState` against `FakeWorker`: evaluate, error spans, history walk.
 **Done when:** those pass, and a screenshot shows an answer and an underlined error. **Try this:** `1/0`, `2^1000`, `(1+`.
@@ -563,7 +565,7 @@ T17 to T20 (jobs, generic math, tuning, Payne-Hanek) aren't needed for launch. T
 ### W1. exp and ln
 **Needs:** T6, W0.
 **Goal:** `exp`, `ln`, `log1p`, keys lit, and two rules the later W sessions reuse.
-**Exact arguments:** through B8's `RoundedCall`, so `ln(1+1e-80)` is 1e-80 at 256 bits.
+**Exact arguments:** through B8's `RoundedCall`, so `ln(1+1e-80)` is 1e-80 at 256 bits. That's already wired: `ExactArithmetic.Call` sends any function it doesn't handle itself, with an exact argument, through `RoundedCall` to `FloatArithmetic.Call`, so adding the function to `FunctionTable` and to `FloatArithmetic.Call` is enough. Its `unsettled` hook takes the exact answer where the corners never agree, as `log10(1000)` would need in a directed mode.
 **Promotion, back to exact:** a float result becomes exact only if (1) its argument is an exact value (`IntValue` or `RatioValue`) that converted with no Inexact, read from that conversion's own flag change; (2) the call itself raised no Inexact; and (3) the exact value fits B7's budgets. Otherwise it stays float. Never in format mode or with Exact off. So `exp(0)` is exact 1, and later `log2(8)` is exact 3. But `ln(1+1e-80)` must not become exact 0: `ieee.Divide(10^80+1, 10^80)` is 1 with Inexact, and a per-call flag alone would miss that. Nor must `ln(sqrt(1+1e-80))`: that argument is a float that happens to equal 1.
 **Tests:** one per function; both rules, with those counter-examples; domain errors; `exp(1000.1)` at 256 bits against a pinned value.
 
