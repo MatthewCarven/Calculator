@@ -19,13 +19,18 @@ public readonly record struct Outcome(Value Value, IeeeFlags Flags);
 /// </remarks>
 public sealed class Evaluator(IArithmetic arithmetic, Names names)
 {
-    /// <summary>Parses and evaluates on the calling thread, which should have a big stack (rule 13).</summary>
-    public static Outcome Run(string source, Target target, RoundingMode mode, Value? ans = null)
+    /// <summary>
+    /// Parses and evaluates on the calling thread, which should have a big stack (rule 13). With <paramref name="exact"/>,
+    /// integers and fractions stay exact within the budgets; a format target always uses floats. The product's default is
+    /// exact (Matthew, 2026-11-07), which the worker passes; this method's default is floats, so the float core's own
+    /// tests need not say so.
+    /// </summary>
+    public static Outcome Run(string source, Target target, RoundingMode mode, Value? ans = null, bool exact = false, ExactBudgets? budgets = null)
     {
         Node tree = Parser.Parse(source);
-        var floats = new FloatArithmetic(target, mode);
-        Value value = new Evaluator(floats, new Names(ans)).Evaluate(tree);
-        return new Outcome(value, floats.Flags);
+        IArithmetic arithmetic = exact && !target.IsFormat ? new ExactArithmetic(target, mode, budgets) : new FloatArithmetic(target, mode);
+        Value value = new Evaluator(arithmetic, new Names(ans)).Evaluate(tree);
+        return new Outcome(value, arithmetic.Flags);
     }
 
     public Value Evaluate(Node node)

@@ -33,8 +33,46 @@ public sealed record ResultText(string Short, string Main, string Kind, int Digi
     public static ResultText Of(Value value, Target target, TextOptions? options = null)
     {
         options ??= TextOptions.Default;
-        if (value is not FloatValue { Number: var x })
-            throw new ArgumentException($"No text for a {value.GetType().Name} yet.", nameof(value));
+        if (value is IntValue or RatioValue)
+        {
+            try { return OfExact(value, target, options); }
+            catch (OverflowException e) { throw ErrorMap.From(e, null); }
+        }
+        if (value is not FloatValue { Number: var x } floatValue)
+            throw new ArgumentException($"No text for a {value.GetType().Name}.", nameof(value));
+        // The chip: a float standing in for an exact answer past a budget says so.
+        return OfFloat(x, target, options) with { Kind = floatValue.ExactTooLarge ? "float (exact too large)" : "float" };
+    }
+
+    /// <summary>
+    /// B7's plain text for exact values; B8 adds "= n/d", "exact, about N digits" and the chips. An integer shows every
+    /// digit while it has at most <see cref="MainLimit"/>; a fraction shows its decimal at the target.
+    /// </summary>
+    private static ResultText OfExact(Value value, Target target, TextOptions options)
+    {
+        if (value is IntValue { Number: var n })
+        {
+            if (n.BitLength <= ExactDigitBits)
+            {
+                string whole = n.ToString();
+                string main = options.Notation == Notation.Auto ? whole : Render(Parts.Of(whole), options.Notation);
+                string shortText = whole.Length <= ShortWidth ? whole : ShortOf(n, 17);
+                return new ResultText(shortText, Group(main, options), "exact", whole.TrimStart('-').Length, true);
+            }
+            // Too long to show whole: its exact value, previewed as a float's would be, with about how many digits it has.
+            int about = (int)Math.Floor((n.BitLength - 1) * 0.30102999566398120) + 1;
+            return OfBits(n, about, options) with { Kind = "exact" };
+        }
+        var r = (RatioValue)value;
+        ApFloat quotient = ApFloat.Divide(r.Numerator, r.Denominator, target.Precision);
+        return OfBits(quotient, Protocol.Digits.For(target.Precision), options) with { Kind = "exact" };
+    }
+
+    /// <summary>Integers this long have at most <see cref="MainLimit"/> digits: 1,300 / log10(2), less a bit.</summary>
+    private const long ExactDigitBits = 4300;
+
+    private static ResultText OfFloat(ApFloat x, Target target, TextOptions options)
+    {
         try
         {
             // At bits a negative zero is just zero (rule: fold -0 at bits). At a format it's a real IEEE value, and stays.

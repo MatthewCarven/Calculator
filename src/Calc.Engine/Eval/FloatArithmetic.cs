@@ -42,6 +42,8 @@ public sealed class FloatArithmetic(Target target, RoundingMode mode) : IArithme
 
     public Value Import(Value value, TextSpan at)
     {
+        // An exact Ans, with Exact off, converts at use (B11); the conversion is its one rounding.
+        if (value is not FloatValue) return new FloatValue(F(value));
         ApFloat x = F(value);
         // Rule 14: a float can't leave its target. The worker refuses a mismatch first (B9); this is the wall behind it.
         if (x.Precision != _ieee.Precision)
@@ -86,8 +88,19 @@ public sealed class FloatArithmetic(Target target, RoundingMode mode) : IArithme
     public Value Power(Value a, Value b, TextSpan at)
     {
         var before = _ieee.Flags;
-        return Checked(PowerFloat.Power(_ieee, F(a), F(b), at), before, at);
+        return Checked(PowerFloat.Power(_ieee, F(a), Exponent(b), at), before, at);
     }
+
+    /// <summary>
+    /// The exponent as itself where it's exact and an integer or a half, since PowerFloat reads its value as it stands:
+    /// rounded to the target, an exact 10^30 or 2^70 + 1 would be a different exponent. Anything else converts as usual.
+    /// </summary>
+    private ApFloat Exponent(Value b) => b switch
+    {
+        IntValue i => i.Number,
+        RatioValue { Denominator: var d } r when d == 2 => new ApFloat(r.Numerator, -1, ApFloat.MaxPrecision),
+        _ => F(b),
+    };
 
     /// <summary>Floored: the result takes the divisor's sign, so -7 mod 3 is 2. Exact, then rounded once.</summary>
     public Value Mod(Value a, Value b, TextSpan at)
@@ -160,7 +173,7 @@ public sealed class FloatArithmetic(Target target, RoundingMode mode) : IArithme
     /// <summary>-1, or 1; a zero keeps its own sign, and NaN stays NaN.</summary>
     private ApFloat Sign(ApFloat x) => x.IsZero || x.IsNaN ? x : _ieee.Convert(x.IsNegative ? -1 : 1);
 
-    private static ApFloat Fold(IReadOnlyList<Value> arguments, Func<ApFloat, ApFloat, ApFloat> pick)
+    private ApFloat Fold(IReadOnlyList<Value> arguments, Func<ApFloat, ApFloat, ApFloat> pick)
     {
         ApFloat result = F(arguments[0]);
         for (int i = 1; i < arguments.Count; i++) result = pick(result, F(arguments[i]));
@@ -172,7 +185,7 @@ public sealed class FloatArithmetic(Target target, RoundingMode mode) : IArithme
 
     private static bool IsWhole(ApFloat x) => !x.IsNaN && !x.IsInfinity && ApFloat.IsInteger(x);
 
-    private static ApInt Whole(Value value, TextSpan at)
+    private ApInt Whole(Value value, TextSpan at)
     {
         ApFloat x = F(value);
         if (!IsWhole(x)) throw new CalcError(ErrorKind.Domain, "Bit operators need whole numbers.", at);
@@ -219,9 +232,18 @@ public sealed class FloatArithmetic(Target target, RoundingMode mode) : IArithme
         return new FloatValue(result);
     }
 
-    private static ApFloat F(Value value) => value is FloatValue f
-        ? f.Number
-        : throw new CalcError(ErrorKind.Internal, $"FloatArithmetic was given a {value.GetType().Name}.");
+    /// <summary>
+    /// A value as a float at the target. An exact one converts here, rounding once: an integer by Convert, a fraction by
+    /// one Divide, since the implicit conversions are exact up to 2^30 bits. That's how Exact off, and B7's mixed
+    /// operations, treat exact operands; B8 makes the mixed ones honest.
+    /// </summary>
+    private ApFloat F(Value value) => value switch
+    {
+        FloatValue f => f.Number,
+        IntValue i => _ieee.Convert(i.Number),
+        RatioValue r => _ieee.Divide(r.Numerator, r.Denominator),
+        _ => throw new CalcError(ErrorKind.Internal, $"FloatArithmetic was given a {value.GetType().Name}."),
+    };
 
     private static bool IsWhole(string s) =>
         s.Length > 2 && s[0] == '0' && s[1] is 'x' or 'X' or 'b' or 'B'
