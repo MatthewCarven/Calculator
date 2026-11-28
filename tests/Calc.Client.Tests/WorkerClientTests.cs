@@ -72,6 +72,8 @@ public class WorkerClientTests
         await Task.Delay(500); // well into the multiply
         var clock = Stopwatch.StartNew();
         await client.StopAsync();
+        // No live worker the moment Stop returns, so the next request can't go to the one being killed.
+        Assert.Null(client.ProcessId);
         var stopped = Assert.IsType<ErrorReply>(await running.WaitAsync(TimeSpan.FromSeconds(10)));
         long stopMs = clock.ElapsedMilliseconds;
         Assert.Equal("Stopped", stopped.Kind);
@@ -210,6 +212,7 @@ public class WorkerClientTests
                 await Task.Delay(250);
                 processes.Add(client.ProcessId!.Value);
                 await client.StopAsync();
+                Assert.Null(client.ProcessId);
                 Assert.Equal("Stopped", Assert.IsType<ErrorReply>(await running.WaitAsync(TimeSpan.FromSeconds(10))).Kind);
             }
             Assert.Equal("2", Assert.IsType<ResultReply>(await client.EvaluateAsync("1+1", EvalContext.Default).Soon()).Main);

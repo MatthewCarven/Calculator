@@ -3,6 +3,11 @@
 usage: python tests/mutations/b10-client.py <first> <count> | check
 Each mutation's old text must match exactly once. It's applied, the client's tests run, and the file is restored in
 `finally`. None of these crashes a worker. Don't build Calc while it runs.
+
+2026-11-29: 17 of 20 red (M2 after fixing its own edit, which hadn't built). Three survive. M5: the reader thread clears a
+killed worker within milliseconds of the kill, and the clear in End only closes that window, which no test hits reliably.
+M11: equivalent, since .NET sets AutoFlush on a redirected StandardInput. M15: equivalent in practice, since the killed
+process has exited before a test can look; the wait stays as the guarantee.
 """
 import ctypes, re, subprocess, sys, time
 from pathlib import Path
@@ -15,7 +20,7 @@ CI = r"src\Calc.Client\CommitInfo.cs"
 M = [
     # Stop
     ("M1 a grace of 2 s", [(WC, "TimeSpan.FromMilliseconds(150);", "TimeSpan.FromMilliseconds(2000);")]),
-    ("M2 no soft stop sent", [(WC, "                if (waiting.IsEval) connection.TryWrite(Messages.Write(new StopRequest(id)));\n", "")]),
+    ("M2 no soft stop sent", [(WC, "if (waiting.IsEval) connection.TryWrite(Messages.Write(new StopRequest(id)));", "if (false) connection.TryWrite(Messages.Write(new StopRequest(id)));")]),
     ("M3 the kill skipped", [(WC, "        connection.Kill();\n        foreach (var (id, reply) in orphans) reply.TrySetResult(new ErrorReply(id, \"Stopped\", message));",
                               "        foreach (var (id, reply) in orphans) reply.TrySetResult(new ErrorReply(id, \"Stopped\", message));")]),
     ("M4 a killed worker's tasks left waiting", [(WC, "        connection.Kill();\n        foreach (var (id, reply) in orphans) reply.TrySetResult(new ErrorReply(id, \"Stopped\", message));",

@@ -84,7 +84,7 @@ https://github.com/MatthewCarven/Calculator, which is public, so nothing private
 - [x] B7 Exact values and operators (2026-11-27: an exact oracle, each budget from both sides, Muller exact; 22 of 22 mutations caught, one by timeout)
 - [x] B8 Exact functions and display (2026-11-27: exact functions against BigInteger fractions, RoundedCall by stand-ins, every mixed and over-budget operation against the exact answer rounded once; 38 of 38 mutations red)
 - [x] B9 Worker process (2026-11-29: the real exe through every request, malformed lines, the soft stop, held values and a heap cap; 25 of 25 mutations red)
-- [ ] B10 Worker client, with Stop
+- [x] B10 Worker client, with Stop (2026-11-29: Stop to Stopped about 170 ms inside a 2,000,000-bit multiply, a contract the fake keeps too; 17 of 20 mutations red, 3 explained)
 - [ ] B11 Session, the clear rule, console calculator
 - [ ] B12 Cost model and preflight
 
@@ -393,8 +393,10 @@ independently. `0.1+0.2` at 53 bits. One test per error kind. Keep the tree gene
 **Traps:** read stdout on one dedicated task, or a full pipe deadlocks a big reply. Stop during a respawn. Dispose kills.
 **Tests (real exe):** Stop inside a 2,000,000-bit multiply (the spike timed `Kill` to exit at 2 to 3 ms, so about 153 ms from Stop, and about 250 ms to the next answer); a worker made to die; a child reports `GC.GetGCMemoryInfo().TotalAvailableMemoryBytes` equal to the cap; `CommitInfo` injected at 0.5, 1.0 and 1.1 GiB free; an out-of-memory under a small cap reports and recovers; 20 stop-and-go cycles leave no process behind.
 **Done when:** those pass, and a test proves no `calc-worker` remains after dispose.
+**Built (2026-11-29), filling in what the brief left open:** `IWorker` has `EvaluateAsync`, `FetchAsync`, `FunctionsAsync`, `PingAsync` and `StopAsync`; every task completes with a `Reply` and none throws for a stop, a death or short memory, which come as `ErrorReply` kinds `Stopped`, `WorkerDied` (with the exit code and the end of stderr) and `MemoryShort`. Stop stops everything outstanding. The worker's `pong` now carries `memory`, its `TotalAvailableMemoryBytes`, which is how a test sees the cap. The heap cap setting must be at least the 256 MiB floor, or no worker starts. Measured on the real exe in Debug: Stop to Stopped about 170 ms inside a 2,000,000-bit multiply, and about 170 ms more to a new worker's first answer, close to the spike's 153 and 250.
 
 ### B11. Session, the clear rule, console calculator
+**From B10 (2026-11-29):** `IWorker.EvaluateAsync(source, context, ans, options)` returns a `Task<Reply>`: a `ResultReply`, or an `ErrorReply` whose kind is an `ErrorKind` name, `BadRequest`, `ValueGone`, or the client's own `Stopped`, `WorkerDied` and `MemoryShort`. None of them throws. `StopAsync` stops everything outstanding, and when it has to kill the worker, everything that worker held goes with it: the next `Ans` naming a held value gets `ValueGone`, so replay the line. `FakeWorker` (tests/Calc.Client.Tests) answers from a function you give it, the source echoed by default; `Hold = true` keeps evaluations outstanding until `Release()` or Stop, `Requests` records every request, and it passes `WorkerContract`, the same tests the real client passes. `Soon()` caps a test's wait.
 **Goal:** the behaviour in PLAN.md's clear table, in plain testable code, and a console calculator to try.
 **Needs:** B10.
 **Files:** `Calc.Client/Session.cs`, `HistoryLine.cs`, `Calc.Cli/Program.cs`, tests.

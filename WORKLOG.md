@@ -445,3 +445,48 @@ The battery is `tests/mutations/b9-worker.py`.
 - `EvalContext.Angle` defaults to degrees, as the window does; nothing uses it until W3.
 
 **Next:** B10, the worker client, with Stop. Its brief carries notes from B9.
+
+## 2026-11-29, later: B10 done
+
+The worker client: `Calc.Client/IWorker.cs`, `WorkerClient.cs` and `CommitInfo.cs`, with `tests/Calc.Client.Tests/FakeWorker.cs`.
+`WorkerClient` owns calc-worker's life, so nothing above it thinks about processes. It starts a worker with the first
+request, gives each request the next id and a task, reads replies on a dedicated thread so a big one can't fill the pipe,
+and drops any reply nothing waits for. Every task completes with a reply; none throws for a stop, a death or short memory.
+810 tests in all.
+
+**Stop.** `StopAsync` sends the soft stop for whatever is outstanding, waits 150 ms, and if that hasn't ended it, kills
+the worker's process tree: everything completes as Stopped, and the next request starts a new worker. Measured on the
+real exe in Debug: inside a 2,000,000-bit multiply, which no soft stop can reach, Stop to Stopped is about 170 ms, and a
+new worker answers about 170 ms later, close to the spike's 153 and 250. A sum of 200 smaller powers stops softly well
+inside the 150 ms, and the same warm worker carries on. A worker killed from outside completes what it had as
+WorkerDied, with its exit code, and is replaced. Dispose kills the worker and waits until it has gone.
+
+**The heap cap** is `DOTNET_GCHeapHardLimit`, written in hex: the 4 GiB setting, or free commit less 1 GiB if that's
+smaller, read from `GlobalMemoryStatusEx` and worked in Int128, so a shortfall is negative instead of wrapping. Below
+256 MiB no worker starts, and the request says memory is short. The worker's `pong` now carries the memory it may use,
+which is how a test sees the cap: 512 MiB set, 512 MiB reported.
+
+**Tested:** a contract every `IWorker` keeps, run against the real client and the fake alike, so B11 can trust the fake;
+on the real exe, Stop inside the multiply, the soft stop with no kill, a worker killed from outside, the cap as the child
+reports it, free commit at 0.5, 1.0 and 1.1 GiB (no worker) and at 1.25, 3 and 5 GiB (capped at 256 MiB, 2 GiB, 4 GiB),
+out of memory under the floor recovered in the same worker, 20 stop-and-go cycles leaving no process, dispose leaving no
+process, big replies whole, and a missing exe. A batch file stands in for a worker to send a line that isn't JSON, a reply
+nobody asked for and a progress line before the real result: only the result completes the task. Every wait in these
+tests is capped.
+
+**Found on the way:** a test that stopped 150 ms after starting a new worker often caught it before the multiply began,
+so the soft stop won and nothing was killed; the expression now reaches its multiply within milliseconds, and each cycle
+warms its worker first. And the heredoc backslash trap struck twice more, once leaving a patch half applied, so the
+battery's reruns tested the old files until I noticed; the Edit tool did it.
+
+**Mutations:** 20. 17 red, M2 after fixing its own edit, which hadn't built. Three survive, explained in
+`tests/mutations/b10-client.py`: the reader clears a killed worker within milliseconds anyway (M5); .NET already
+autoflushes the worker's stdin (M11); a killed worker has exited before a test can look (M15).
+
+**Choices made here:**
+- `IWorker` has `EvaluateAsync`, `FetchAsync`, `FunctionsAsync`, `PingAsync` and `StopAsync`; Stop stops everything
+  outstanding.
+- The client's own error kinds are `Stopped`, `WorkerDied` and `MemoryShort`.
+- A heap cap setting below the 256 MiB floor starts no worker.
+
+**Next:** B11, the session, the clear rule and the console calculator. Its brief carries a note from B10.
