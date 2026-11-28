@@ -97,13 +97,26 @@ public sealed record FunctionsReply(long Id, IReadOnlyList<FunctionInfo> List) :
 /// <summary>A function's name, how many arguments it takes, and the session it waits on, if any.</summary>
 public sealed record FunctionInfo(string Name, int MinArguments, int MaxArguments, string? WaitingFor = null);
 
-public sealed record PongReply(long Id, string Version) : Reply;
+/// <summary>
+/// The worker's answer to <see cref="PingRequest"/>: the wire version, and the memory it may use, which is the heap cap
+/// the Client set (B10), or all there is.
+/// </summary>
+public sealed record PongReply(long Id, string Version, long? Memory = null) : Reply;
 
-/// <summary>The worker's own error kinds, beside Calc.Syntax's.</summary>
+/// <summary>The worker's own error kinds, and the Client's, beside Calc.Syntax's.</summary>
 public static class ErrorKinds
 {
+    /// <summary>The worker couldn't use the line: it isn't a request, or its context or Ans can't be used.</summary>
     public const string BadRequest = "BadRequest";
+
+    /// <summary>The worker no longer holds that value: replay its line.</summary>
     public const string ValueGone = "ValueGone";
+
+    /// <summary>The Client's: the worker ended by itself, or couldn't start. The next request starts another.</summary>
+    public const string WorkerDied = "WorkerDied";
+
+    /// <summary>The Client's: too little memory is free to start a worker safely (B10's floor).</summary>
+    public const string MemoryShort = "MemoryShort";
 }
 
 /// <summary>Messages to and from their one-line JSON text.</summary>

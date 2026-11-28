@@ -57,7 +57,7 @@ internal sealed class Loop
             switch (request)
             {
                 case PingRequest ping:
-                    Send(new PongReply(ping.Id, Wire.Version));
+                    Send(new PongReply(ping.Id, Wire.Version, GC.GetGCMemoryInfo().TotalAvailableMemoryBytes));
                     break;
                 case StopRequest stop:
                     Stop(stop.Id);
