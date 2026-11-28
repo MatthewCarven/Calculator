@@ -19,14 +19,14 @@ public abstract class WorkerContract
     public async Task IdsCountUpAndRepliesEchoThem()
     {
         using var worker = Create();
-        var first = Assert.IsType<ResultReply>(await worker.EvaluateAsync("1+1", Context));
-        var second = Assert.IsType<ResultReply>(await worker.EvaluateAsync("2+2", Context));
+        var first = Assert.IsType<ResultReply>(await worker.EvaluateAsync("1+1", Context).Soon());
+        var second = Assert.IsType<ResultReply>(await worker.EvaluateAsync("2+2", Context).Soon());
         Assert.True(second.Id > first.Id, $"{first.Id} then {second.Id}");
-        var pong = Assert.IsType<PongReply>(await worker.PingAsync());
+        var pong = Assert.IsType<PongReply>(await worker.PingAsync().Soon());
         Assert.True(pong.Id > second.Id);
         Assert.Equal(Wire.Version, pong.Version);
-        Assert.IsType<FunctionsReply>(await worker.FunctionsAsync());
-        Assert.Equal(ErrorKinds.ValueGone, Assert.IsType<ErrorReply>(await worker.FetchAsync(999)).Kind);
+        Assert.IsType<FunctionsReply>(await worker.FunctionsAsync().Soon());
+        Assert.Equal(ErrorKinds.ValueGone, Assert.IsType<ErrorReply>(await worker.FetchAsync(999).Soon()).Kind);
     }
 
     [Fact]
@@ -48,9 +48,9 @@ public abstract class WorkerContract
     {
         using var worker = Create();
         await worker.StopAsync();
-        Assert.IsType<ResultReply>(await worker.EvaluateAsync("1", Context));
+        Assert.IsType<ResultReply>(await worker.EvaluateAsync("1", Context).Soon());
         await worker.StopAsync();
-        Assert.IsType<ResultReply>(await worker.EvaluateAsync("2", Context));
+        Assert.IsType<ResultReply>(await worker.EvaluateAsync("2", Context).Soon());
     }
 
     [Fact]
