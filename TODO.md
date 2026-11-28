@@ -83,7 +83,7 @@ https://github.com/MatthewCarven/Calculator, which is public, so nothing private
 - [x] B6 Result text (2026-11-26: five notations and grouping, text read back within half a unit; 19 of 19 mutations red, one after a new test)
 - [x] B7 Exact values and operators (2026-11-27: an exact oracle, each budget from both sides, Muller exact; 22 of 22 mutations caught, one by timeout)
 - [x] B8 Exact functions and display (2026-11-27: exact functions against BigInteger fractions, RoundedCall by stand-ins, every mixed and over-budget operation against the exact answer rounded once; 38 of 38 mutations red)
-- [ ] B9 Worker process
+- [x] B9 Worker process (2026-11-29: the real exe through every request, malformed lines, the soft stop, held values and a heap cap; 25 of 25 mutations red)
 - [ ] B10 Worker client, with Stop
 - [ ] B11 Session, the clear rule, console calculator
 - [ ] B12 Cost model and preflight
@@ -381,8 +381,10 @@ independently. `0.1+0.2` at 53 bits. One test per error kind. Keep the tree gene
 **Traps:** a malformed line gets an `error`, and never kills the loop. `OutOfMemoryException` becomes `TooBig`. Spike: `docs/research/ui/worker-thread-process-spike.cs`.
 **Tests (real exe):** round trip; ids echoed; 200 evals in a row; malformed lines; soft stop between nodes; stdin close ends the process within a second; an 830,000-character reply intact; `1/3` then `Ans*3` passing the returned lossless text gives exact 1; `2^1000000` then `Ans+1` stays exact; a mismatched float `ans` refused; `2^5000000` (1,250,001 hex characters) replies `held`, `Ans+1` naming it stays exact, and `fetch` returns it; a 199,999-term sum gives an answer, and a 1,000,000-term sum a clean error.
 **Done when:** those pass.
+**Built (2026-11-29), filling in what the brief left open:** `calc-worker` with no arguments is the loop; `--eval` stays. `stop` carries the id of the evaluation to stop and has no reply of its own: that evaluation replies `error` kind `Stopped`, and one still queued does so without starting. `ping` and `stop` are answered on the reader thread, so they work during a long evaluation; the rest run in order on the compute thread. `result` also carries `caption` and `complete`. `ans` is `{lossless}` or `{held}`. Error kinds are `ErrorKind`'s names plus `BadRequest` (a line it can't use, a context Natural can't make, an `ans` it can't read or a float `ans` from another target) and `ValueGone`. A held value's id is the id of the reply that made it. `EvalContext.Angle` defaults to degrees, as the window does.
 
 ### B10. Worker client, with Stop
+**From B9 (2026-11-29):** spawn `calc-worker` with no arguments, stdin and stdout redirected, UTF-8 both ways with no BOM; write `Messages.Write(request)` and a newline, read `Messages.ReadReply` a line at a time. Replies come in the order the evaluations ran, except `pong` and a malformed line's `error`, which come at once, so match by id. `StopRequest(id)` is the soft stop: it names the evaluation, has no reply of its own, and that evaluation replies `error` kind `Stopped` at its next node; an operation already under way, such as one huge multiply, finishes first, which is what the kill is for. Closing stdin ends the worker within a second, even mid-evaluation (tested). `DOTNET_GCHeapHardLimit` in hex works: a test at `0x4000000` gets `TooBig` and the loop goes on, and `HeldValues` drops the oldest past a quarter of `GC.GetGCMemoryInfo().TotalAvailableMemoryBytes`. `tests/Calc.Worker.Tests/WorkerProcess.cs` drives the real exe with capped waits, and `LoopTests.Slow` is a sum of 30 exact powers, about 7 s in Debug, for something to stop.
 **Goal:** a client that owns the worker's life, so nothing above it thinks about processes.
 **Needs:** B9.
 **Files:** `Calc.Client/IWorker.cs`, `WorkerClient.cs`, `CommitInfo.cs`, `tests/…/FakeWorker.cs`, tests.

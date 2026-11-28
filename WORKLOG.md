@@ -395,3 +395,53 @@ same float's, which checks the new G layout against Natural's own; and both prev
   be a square (an odd count of twos, or SqrtRem said so) gives a plain float.
 
 **Next:** B9, the worker process. Its brief carries a note from B8 about `caption`.
+
+## 2026-11-29: B9 done
+
+The worker process: `Calc.Protocol/EvalContext.cs` and `Messages.cs`, `Calc.Worker/Loop.cs`, and `Calc.Engine/Eval/Contexts.cs`.
+`calc-worker` with no arguments is now the loop the Client will talk to: one JSON request a line on stdin, one reply a line
+on stdout, until stdin ends, which ends the process at once, even mid-evaluation, so a worker whose Client has gone dies
+with it. `--eval` stays, for agents. 770 tests in all.
+
+**How it runs.** The reader thread answers `ping` and `stop` itself, so both work during a long evaluation; everything else
+runs in order on a BelowNormal compute thread with a 256 MiB stack, which parses there (rule 13). Stop is soft: the
+evaluator checks a token on every node, so a sum of 30 big powers stops within one power, and a queued evaluation that's
+stopped replies Stopped without starting. A malformed line, an evaluation error, or running out of memory under a heap cap
+gets an error reply, and the loop goes on.
+
+**The wire.** `EvalContext` (target, rounding, exact, angle, budgets) and every request and reply in the brief are records
+in Calc.Protocol, tagged by `"type"`, with source-generated JSON, camelCase, nulls left out, and `·` and `π` written as
+themselves. A result carries ResultText's fields, B8's caption included, the flags, the time, the understood form, and
+the value's lossless text. Past 1 MiB of text the worker holds the value instead, under the reply's id. `Ans` and
+`fetch` can name a held value, and the oldest go once they pass a quarter of the heap cap. A float `Ans` from another
+target is refused (rule 14).
+
+```
+(printf '%s\n' '{"type":"eval","id":1,"source":"6/2(1+2)","context":{"target":{"precision":256}}}'; sleep 2) | calc-worker
+{"type":"result","id":1,"short":"9","main":"9","kind":"exact","caption":"exact, 1 digit",...,"lossless":"i:9","understood":"(6/2)·(1 + 2)"}
+```
+
+**Found on the way:** with required constructor parameters switched on, System.Text.Json requires the nullable ones too,
+while the writer leaves nulls out, so a reply without a held id didn't read back. Every reply failed until the nullable
+fields got defaults; an error's id, which can be null, is always written. And piping requests in with printf closes stdin
+at once, so the worker, rightly, ended before answering; holding stdin open fixed the probe, not the worker.
+
+**Tested, on the real exe:** a round trip; ids echoed in order; 200 evaluations in a row; nine kinds of malformed line,
+each answered with its id where it had one; the soft stop, running and queued; ping answered during a long evaluation;
+stdin closing ends it within a second, idle and busy; an 830,003-character reply intact; `1/3` then `Ans*3` exactly 1, and
+`2^1000000` then `Ans+1` exact; float `Ans` refused at 64 bits and at binary64; `2^5000000` held, named by `Ans`, fetched;
+`ValueGone` for a value it never held; eviction under a 128 MiB cap; `TooBig` under a 64 MiB cap; a 199,999-term sum
+answered and a 1,000,000-term sum a clean `TooBig`; the context, rounding, Exact, budgets and text style honoured; the
+function table; text outside ASCII both ways. Every message to its line and back, the context mapping, and the evaluator's
+soft stop on its own.
+
+**Mutations:** 25, all predicted red, and all 25 were. None crashes the worker, which could pop a dialog on Matthew's screen.
+The battery is `tests/mutations/b9-worker.py`.
+
+**Choices made here:**
+- `stop` names the evaluation to stop and has no reply of its own; the evaluation replies `error` kind `Stopped`.
+- Error kinds are `ErrorKind`'s names plus `BadRequest` and `ValueGone`.
+- A held value's id is the id of the reply that made it.
+- `EvalContext.Angle` defaults to degrees, as the window does; nothing uses it until W3.
+
+**Next:** B10, the worker client, with Stop. Its brief carries notes from B9.
