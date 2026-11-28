@@ -16,8 +16,10 @@ public readonly record struct Outcome(Value Value, IeeeFlags Flags);
 /// <remarks>
 /// Trees can be 200,000 deep, so this runs on the worker's compute thread (rule 13). As in <see cref="Parser"/>, the
 /// recursive method is kept lean, with everything else in helpers, and a low stack is a TooBig error, never an overflow.
+/// The soft stop (B9) is checked on every node, so a long evaluation ends at the next node after Stop, as Stopped; an
+/// operation already under way finishes first, and only the worker's kill (B10) cuts that short.
 /// </remarks>
-public sealed class Evaluator(IArithmetic arithmetic, Names names)
+public sealed class Evaluator(IArithmetic arithmetic, Names names, CancellationToken stop = default)
 {
     /// <summary>
     /// Parses and evaluates on the calling thread, which should have a big stack (rule 13). With <paramref name="exact"/>,
@@ -25,17 +27,21 @@ public sealed class Evaluator(IArithmetic arithmetic, Names names)
     /// exact (Matthew, 2026-11-07), which the worker passes; this method's default is floats, so the float core's own
     /// tests need not say so.
     /// </summary>
-    public static Outcome Run(string source, Target target, RoundingMode mode, Value? ans = null, bool exact = false, ExactBudgets? budgets = null)
+    public static Outcome Run(string source, Target target, RoundingMode mode, Value? ans = null, bool exact = false, ExactBudgets? budgets = null) =>
+        Run(Parser.Parse(source), target, mode, ans, exact, budgets);
+
+    /// <summary>A tree already parsed, as the worker has it for its understood form, with the soft stop's token.</summary>
+    public static Outcome Run(Node tree, Target target, RoundingMode mode, Value? ans, bool exact, ExactBudgets? budgets, CancellationToken stop = default)
     {
-        Node tree = Parser.Parse(source);
         IArithmetic arithmetic = exact && !target.IsFormat ? new ExactArithmetic(target, mode, budgets) : new FloatArithmetic(target, mode);
-        Value value = new Evaluator(arithmetic, new Names(ans)).Evaluate(tree);
+        Value value = new Evaluator(arithmetic, new Names(ans), stop).Evaluate(tree);
         return new Outcome(value, arithmetic.Flags);
     }
 
     public Value Evaluate(Node node)
     {
         if (!RuntimeHelpers.TryEnsureSufficientExecutionStack()) throw TooDeep(node);
+        if (stop.IsCancellationRequested) throw Stopped();
         switch (node)
         {
             case BinaryNode { Op: BinaryOp.To } b:
@@ -172,6 +178,9 @@ public sealed class Evaluator(IArithmetic arithmetic, Names names)
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static CalcError NotYet(BinaryNode b) => new(ErrorKind.NotAvailable, "'to' isn't available yet.", b.OpSpan);
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static CalcError Stopped() => new(ErrorKind.Stopped, "Stopped.", null);
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static CalcError TooDeep(Node node) =>

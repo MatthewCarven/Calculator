@@ -1,4 +1,5 @@
-// calc-worker. B9 puts the stdio loop here. For agents and people, --eval evaluates one expression:
+// calc-worker. With no arguments it's the stdio loop the Client talks to (Loop, B9): JSON requests a line at a time on
+// stdin, replies on stdout, until stdin ends. For agents and people, --eval evaluates one expression:
 //   calc-worker --eval "0.1+0.2" [--bits 53 | --format binary64] [--mode nearest|zero|up|down]
 //               [--notation auto|scientific|engineering|fixed|aligned] [--group <separator>] [--raw] [--exact on|off]
 //               [--caption]
@@ -7,12 +8,23 @@
 // on by default, as in the window (Matthew, 2026-11-07). Any flags go to stderr.
 // An error goes to stderr, with exit code 1; bad arguments, 2.
 
+using System.Text;
 using Calc.Engine.Eval;
 using Calc.Engine.Text;
 using Calc.Engine.Values;
 using Calc.Syntax;
+using Calc.Worker;
 using Natural;
 
+if (args.Length == 0)
+{
+    var utf8 = new UTF8Encoding(false);
+    using var input = new StreamReader(Console.OpenStandardInput(), utf8);
+    using var output = new StreamWriter(Console.OpenStandardOutput(), utf8); // Loop ends each line with \n itself
+    new Loop(output).Run(input);
+    // Stdin has ended, so the Client has gone: end now, even mid-evaluation, so no orphan lives on.
+    Environment.Exit(0);
+}
 if (args.Length < 2 || args[0] != "--eval") return Usage();
 
 string source = args[1];
@@ -108,6 +120,6 @@ static RoundingMode? Mode(string name) => name switch
 
 static int Usage()
 {
-    Console.Error.WriteLine("usage: calc-worker --eval <expression> [--bits <1 to 2^30> | --format binary16|32|64|128|256] [--mode nearest|zero|up|down] [--notation auto|scientific|engineering|fixed|aligned] [--group <separator>] [--raw] [--exact on|off] [--caption]");
+    Console.Error.WriteLine("usage: calc-worker (no arguments: the stdio loop) | calc-worker --eval <expression> [--bits <1 to 2^30> | --format binary16|32|64|128|256] [--mode nearest|zero|up|down] [--notation auto|scientific|engineering|fixed|aligned] [--group <separator>] [--raw] [--exact on|off] [--caption]");
     return 2;
 }

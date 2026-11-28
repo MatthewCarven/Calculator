@@ -69,8 +69,9 @@ public class EvalFlagTests
         Assert.Equal("DivideByZero at 1..2: Division by zero.", stderr.TrimEnd('\r', '\n'));
     }
 
+    // No arguments at all is the stdio loop now (B9): LoopTests.
     [Theory]
-    [InlineData]
+    [InlineData("--loop")]
     [InlineData("--eval")]
     [InlineData("--eval", "1", "--bits")]
     [InlineData("--eval", "1", "--bits", "0")]
